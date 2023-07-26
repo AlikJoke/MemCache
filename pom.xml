@@ -1,14 +1,14 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <groupId>ru.joke.cachej</groupId>
+    <groupId>ru.joke.memcache</groupId>
     <artifactId>parent</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
-    <name>CacheJ Parent Module</name>
-    <description>Parent module for CacheJ</description>
+    <name>MemCache Parent Module</name>
+    <description>Parent module for MemCache</description>
     <modules>
-        <module>cachej-core</module>
+        <module>memcache-core</module>
     </modules>
 
     <properties>
@@ -22,9 +22,9 @@
     </properties>
 
     <scm>
-        <url>https://github.com/AlikJoke/CacheJ.git</url>
-        <connection>scm:git:https://github.com/AlikJoke/CacheJ.git</connection>
-        <developerConnection>scm:git:https://github.com/AlikJoke/CacheJ.git</developerConnection>
+        <url>https://github.com/AlikJoke/MemCache.git</url>
+        <connection>scm:git:https://github.com/AlikJoke/MemCache.git</connection>
+        <developerConnection>scm:git:https://github.com/AlikJoke/MemCache.git</developerConnection>
     </scm>
 
     <dependencies>
