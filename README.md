@@ -1,2 +1,2 @@
 # MemCache
-In-memory cache supporting various data storage options (heap, off-heap, mixed (heap + off-heap)) and eviction/invalidation policies (LRU/LFU/expiration by TTL). Also supports clustering via CacheBus library (https://github.com/AlikJoke/CacheBus).
+In-memory cache using the heap to store data with eviction/invalidation policies (LRU/LFU/expiration by TTL). Also supports clustering via CacheBus library (https://github.com/AlikJoke/CacheBus).
