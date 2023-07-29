@@ -84,7 +84,7 @@ public interface Cache<K extends Serializable, V extends Serializable> {
      * @return {@code true} if the value was added to cache,
      * {@code false} otherwise if another value already bounded to this key.
      */
-    boolean putIfAbsent(@Nonnull K key, @Nullable V value);
+    Optional<V> putIfAbsent(@Nonnull K key, @Nullable V value);
 
     /**
      * Clears this cache.
@@ -119,6 +119,16 @@ public interface Cache<K extends Serializable, V extends Serializable> {
     @CheckReturnValue
     @Nonnull
     Optional<V> computeIfAbsent(@Nonnull K key, @Nonnull Function<? super K, ? extends V> valueFunction);
+
+    @CheckReturnValue
+    @Nonnull
+    Optional<V> compute(@Nonnull K key, @Nonnull BiFunction<? super K, ? super V, ? extends V> remappingFunction);
+
+    @CheckReturnValue
+    @Nonnull
+    Optional<V> computeIfPresent(@Nonnull K key, @Nonnull BiFunction<? super K, ? super V, ? extends V> remappingFunction);
+
+    boolean replace(@Nonnull K key, @Nullable V oldValue, @Nullable V newValue);
 
     /**
      * Returns cache configuration.
