@@ -1,38 +1,44 @@
 package ru.joke.memcache.core.heap;
 
 import ru.joke.memcache.core.Cache;
-import ru.joke.memcache.core.CacheConfiguration;
-import ru.joke.memcache.core.StoreConfiguration;
-import ru.joke.memcache.core.events.CacheEntryEventListener;
-import ru.joke.memcache.core.events.EventType;
+import ru.joke.memcache.core.configuration.CacheConfiguration;
+import ru.joke.memcache.core.configuration.StoreConfiguration;
+import ru.joke.memcache.core.events.*;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-public final class MemCache<K extends Serializable, V extends Serializable> implements Cache<K, V> {
+final class MemCache<K extends Serializable, V extends Serializable> implements Cache<K, V> {
 
     private final CacheConfiguration configuration;
     private final EntryMetadataFactory entryMetadataFactory;
     private final Set<EntryMetadata<?, K>> entriesMetadata;
     private final List<CacheEntryEventListener<K, V>> listeners;
     private final ThreadLocal<Entry<K, V>> oldEntryContainer = new ThreadLocal<>();
+    private final boolean eternal;
     private volatile Map<K, Entry<K, V>>[] segments;
 
     public MemCache(@Nonnull CacheConfiguration configuration) {
         this.configuration = configuration;
+        this.eternal = configuration.expirationConfiguration().eternal();
         this.segments = createSegments();
-        this.listeners = new ArrayList<>(configuration.registeredListeners());
-        this.entryMetadataFactory = new EntryMetadataFactory(configuration.evictionConfiguration());
+        this.listeners = new CopyOnWriteArrayList<>(configuration.registeredEventListeners());
+        this.entryMetadataFactory = new EntryMetadataFactory(configuration);
+        final long maxElements = configuration.storeConfiguration().maxElements();
         this.entriesMetadata = new ConcurrentSkipListSet<>() {
             @Override
             public boolean add(EntryMetadata<?, K> metadata) {
-                final boolean overflow = size() >= configuration.storeConfiguration().maxElementsInHeapMemory();
+                final boolean overflow = size() >= maxElements;
 
                 if (overflow) {
                     if (contains(metadata)) {
@@ -41,7 +47,14 @@ public final class MemCache<K extends Serializable, V extends Serializable> impl
 
                     // Removing by remove(..) may be run concurrent - its normal
                     synchronized (this) {
-                        while (size() >= configuration.storeConfiguration().maxElementsInHeapMemory()) {
+
+                        // Firstly we will try to remove expired entries if possible
+                        if (!eternal && size() >= maxElements) {
+                            clearExpired();
+                        }
+
+                        while (size() >= maxElements) {
+
                             final EntryMetadata<?, K> removedEntry = first();
                             if (removedEntry != null) {
                                 MemCache.this.remove(removedEntry.key);
@@ -57,10 +70,14 @@ public final class MemCache<K extends Serializable, V extends Serializable> impl
         };
     }
 
-    public void clearExpired() {
+    boolean eternal() {
+        return this.eternal;
+    }
+
+    void clearExpired() {
         this.entriesMetadata.forEach(metadata -> {
-            final long idleExpirationTime = System.currentTimeMillis() - this.configuration.evictionConfiguration().idleExpirationTimeout();
-            if (metadata.expiredByTTLAt <= System.currentTimeMillis() || metadata.lastAccessed <= idleExpirationTime) {
+            final long idleExpirationTime = System.currentTimeMillis() - this.configuration.expirationConfiguration().idleExpirationTimeout();
+            if (metadata.expiredByTtlAt <= System.currentTimeMillis() || metadata.lastAccessed <= idleExpirationTime) {
                 // eviction of element from cache data
                 compute(metadata.key, (k, v) -> {
                     this.entriesMetadata.remove(metadata);
@@ -80,6 +97,16 @@ public final class MemCache<K extends Serializable, V extends Serializable> impl
     @Override
     public CacheConfiguration getConfiguration() {
         return this.configuration;
+    }
+
+    @Override
+    public boolean registerEventListener(@Nonnull CacheEntryEventListener<K, V> listener) {
+        return this.listeners.add(listener);
+    }
+
+    @Override
+    public boolean deregisterEventListener(@Nonnull CacheEntryEventListener<K, V> listener) {
+        return this.listeners.removeIf(l -> l.equals(listener));
     }
 
     @Nonnull
@@ -125,7 +152,8 @@ public final class MemCache<K extends Serializable, V extends Serializable> impl
         this.entriesMetadata.clear();
         this.segments = newSegments;
 
-        // TODO populate batch event
+        final CacheEntriesEvent<K, V> clearEvent = new DefaultCacheEntriesEvent<>(EventType.REMOVED, this);
+        this.listeners.forEach(l -> l.onBatchEvent(clearEvent));
     }
 
     @Override
@@ -353,7 +381,7 @@ public final class MemCache<K extends Serializable, V extends Serializable> impl
         @SuppressWarnings("unchecked")
         final Map<K, Entry<K, V>>[] segments = new ConcurrentHashMap[segmentsCount];
         for (int i = 0; i < segmentsCount; i++) {
-            segments[i] = new ConcurrentHashMap<>((int) storeConfiguration.maxElementsInHeapMemory() / segmentsCount);
+            segments[i] = new ConcurrentHashMap<>((int) storeConfiguration.maxElements() / segmentsCount);
         }
 
         return segments;

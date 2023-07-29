@@ -1,4 +1,4 @@
-package ru.joke.memcache.core.heap;
+package ru.joke.memcache.core.events;
 
 import ru.joke.memcache.core.Cache;
 import ru.joke.memcache.core.events.CacheEntryEvent;

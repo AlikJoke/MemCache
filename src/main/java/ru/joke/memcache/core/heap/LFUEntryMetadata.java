@@ -3,7 +3,7 @@ package ru.joke.memcache.core.heap;
 import javax.annotation.Nonnull;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class LFUEntryMetadata<K> extends EntryMetadata<LFUEntryMetadata<K>, K>{
+final class LFUEntryMetadata<K> extends EntryMetadata<LFUEntryMetadata<K>, K>{
 
     private final AtomicLong usageCounter = new AtomicLong(0);
 

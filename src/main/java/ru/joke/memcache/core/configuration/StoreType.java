@@ -1,4 +1,4 @@
-package ru.joke.memcache.core;
+package ru.joke.memcache.core.configuration;
 
 public enum StoreType {
 
