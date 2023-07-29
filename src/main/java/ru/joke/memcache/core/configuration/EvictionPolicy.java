@@ -6,5 +6,9 @@ public enum EvictionPolicy {
 
     LRU,
 
-    MRU
+    MRU,
+
+    FIFO,
+
+    LIFO
 }

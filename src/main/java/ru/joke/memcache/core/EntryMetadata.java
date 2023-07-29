@@ -8,24 +8,25 @@ abstract class EntryMetadata<T extends EntryMetadata<T, K>, K> implements Compar
     protected final long expiredByTtlAt;
     protected volatile long lastAccessed;
 
-    public EntryMetadata(
-            @Nonnull K key,
-            long expirationTimeout) {
+    protected EntryMetadata(@Nonnull K key, long expirationTimeout) {
         this.key = key;
         this.expiredByTtlAt = System.currentTimeMillis() + expirationTimeout;
     }
 
-    public abstract void onUsage();
+    protected void onUsage() {
+        this.lastAccessed = System.currentTimeMillis();
+    }
 
-    public K key() {
+    @Nonnull
+    protected K key() {
         return key;
     }
 
-    public long expiredByTtlAt() {
+    protected long expiredByTtlAt() {
         return expiredByTtlAt;
     }
 
-    public long lastAccessed() {
+    protected long lastAccessed() {
         return lastAccessed;
     }
 }

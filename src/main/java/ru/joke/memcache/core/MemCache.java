@@ -23,12 +23,13 @@ final class MemCache<K extends Serializable, V extends Serializable> implements 
     private final EntryMetadataFactory entryMetadataFactory;
     private final Set<EntryMetadata<?, K>> entriesMetadata;
     private final List<CacheEntryEventListener<K, V>> listeners;
-    private final ThreadLocal<Entry<K, V>> oldEntryContainer = new ThreadLocal<>();
+    private final ThreadLocal<Entry<K, V>> oldEntryContainer;
     private final boolean eternal;
     private volatile Map<K, Entry<K, V>>[] segments;
 
     public MemCache(@Nonnull CacheConfiguration configuration) {
         this.configuration = configuration;
+        this.oldEntryContainer = new ThreadLocal<>();
         this.eternal = configuration.expirationConfiguration().eternal();
         this.segments = createSegments();
         this.listeners = new CopyOnWriteArrayList<>(configuration.registeredEventListeners());

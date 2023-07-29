@@ -31,6 +31,8 @@
             <xs:enumeration value="LFU"/>
             <xs:enumeration value="LRU"/>
             <xs:enumeration value="MRU"/>
+            <xs:enumeration value="FIFO"/>
+            <xs:enumeration value="LIFO"/>
           </xs:restriction>
         </xs:simpleType>
       </xs:element>
