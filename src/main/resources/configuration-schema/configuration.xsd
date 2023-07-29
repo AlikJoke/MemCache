@@ -4,8 +4,8 @@
   <xs:complexType name="storeType">
     <xs:simpleContent>
       <xs:extension base="xs:string">
-        <xs:attribute type="xs:int" name="max-elements" use="required"/>
-        <xs:attribute type="xs:int" name="concurrency-level" default="16"/>
+        <xs:attribute type="positiveLong" name="max-elements" use="required"/>
+        <xs:attribute type="positiveInt" name="concurrency-level" default="16"/>
       </xs:extension>
     </xs:simpleContent>
   </xs:complexType>
@@ -18,8 +18,8 @@
   </xs:complexType>
 
   <xs:attributeGroup name="expirationAttrs">
-    <xs:attribute type="xs:int" name="ttl"/>
-    <xs:attribute type="xs:int" name="idle-ttl"/>
+    <xs:attribute type="xs:long" name="ttl"/>
+    <xs:attribute type="xs:long" name="idle-ttl"/>
     <xs:attribute type="xs:boolean" name="eternal"/>
   </xs:attributeGroup>
 
@@ -36,13 +36,35 @@
       </xs:element>
       <xs:element type="storeType" name="store"/>
       <xs:element type="expirationType" name="expiration"/>
+      <xs:element type="eventListenersType" name="event-listeners" minOccurs="0"/>
     </xs:sequence>
     <xs:attribute type="xs:string" name="name" use="required"/>
   </xs:complexType>
+
+  <xs:complexType name="eventListenersType">
+    <xs:sequence>
+      <xs:element type="xs:string" name="class" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
   <xs:complexType name="configurationType">
     <xs:sequence>
       <xs:element type="cacheType" name="cache" maxOccurs="unbounded" minOccurs="0"/>
     </xs:sequence>
-    <xs:attribute type="xs:int" name="expired-cleaning-pool-size" default="1"/>
+    <xs:attribute type="positiveInt" name="expired-cleaning-pool-size" default="1">
+    </xs:attribute>
   </xs:complexType>
+
+  <xs:simpleType name="positiveInt">
+    <xs:restriction base="xs:int">
+      <xs:minInclusive value="1"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="positiveLong">
+    <xs:restriction base="xs:long">
+      <xs:minInclusive value="1"/>
+    </xs:restriction>
+  </xs:simpleType>
+
 </xs:schema>

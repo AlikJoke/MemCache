@@ -1,4 +1,4 @@
-package ru.joke.memcache.core.heap;
+package ru.joke.memcache.core;
 
 import javax.annotation.Nonnull;
 

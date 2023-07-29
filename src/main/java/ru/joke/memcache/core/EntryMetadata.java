@@ -1,4 +1,4 @@
-package ru.joke.memcache.core.heap;
+package ru.joke.memcache.core;
 
 import javax.annotation.Nonnull;
 
@@ -16,4 +16,16 @@ abstract class EntryMetadata<T extends EntryMetadata<T, K>, K> implements Compar
     }
 
     public abstract void onUsage();
+
+    public K key() {
+        return key;
+    }
+
+    public long expiredByTtlAt() {
+        return expiredByTtlAt;
+    }
+
+    public long lastAccessed() {
+        return lastAccessed;
+    }
 }

@@ -1,6 +1,5 @@
-package ru.joke.memcache.core.heap;
+package ru.joke.memcache.core;
 
-import ru.joke.memcache.core.*;
 import ru.joke.memcache.core.configuration.CacheConfiguration;
 import ru.joke.memcache.core.configuration.Configuration;
 import ru.joke.memcache.core.configuration.ConfigurationSource;
@@ -11,7 +10,7 @@ import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.*;
 
-public class DefaultCacheManager implements CacheManager, Closeable {
+public final class DefaultCacheManager implements CacheManager, Closeable {
 
     private final Map<String, MemCache<?, ?>> caches = new ConcurrentHashMap<>();
     private ScheduledExecutorService cleaningThreadPool;

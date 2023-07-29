@@ -1,6 +1,5 @@
-package ru.joke.memcache.core.heap;
+package ru.joke.memcache.core;
 
-import ru.joke.memcache.core.Cache;
 import ru.joke.memcache.core.configuration.CacheConfiguration;
 import ru.joke.memcache.core.configuration.StoreConfiguration;
 import ru.joke.memcache.core.events.*;
@@ -57,7 +56,7 @@ final class MemCache<K extends Serializable, V extends Serializable> implements 
 
                             final EntryMetadata<?, K> removedEntry = first();
                             if (removedEntry != null) {
-                                MemCache.this.remove(removedEntry.key);
+                                MemCache.this.remove(removedEntry.key());
                             }
                         }
 
@@ -68,23 +67,6 @@ final class MemCache<K extends Serializable, V extends Serializable> implements 
                 return super.add(metadata);
             }
         };
-    }
-
-    boolean eternal() {
-        return this.eternal;
-    }
-
-    void clearExpired() {
-        this.entriesMetadata.forEach(metadata -> {
-            final long idleExpirationTime = System.currentTimeMillis() - this.configuration.expirationConfiguration().idleExpirationTimeout();
-            if (metadata.expiredByTtlAt <= System.currentTimeMillis() || metadata.lastAccessed <= idleExpirationTime) {
-                // eviction of element from cache data
-                compute(metadata.key, (k, v) -> {
-                    this.entriesMetadata.remove(metadata);
-                    return null;
-                }, true, true);
-            }
-        });
     }
 
     @Nonnull
@@ -263,6 +245,23 @@ final class MemCache<K extends Serializable, V extends Serializable> implements 
         } finally {
             this.oldEntryContainer.remove();
         }
+    }
+
+    boolean eternal() {
+        return this.eternal;
+    }
+
+    void clearExpired() {
+        this.entriesMetadata.forEach(metadata -> {
+            final long idleExpirationTime = System.currentTimeMillis() - this.configuration.expirationConfiguration().idleExpirationTimeout();
+            if (metadata.expiredByTtlAt() <= System.currentTimeMillis() || metadata.lastAccessed() <= idleExpirationTime) {
+                // eviction of element from cache data
+                compute(metadata.key(), (k, v) -> {
+                    this.entriesMetadata.remove(metadata);
+                    return null;
+                }, true, true);
+            }
+        });
     }
 
     private Optional<V> computeIfPresent(
