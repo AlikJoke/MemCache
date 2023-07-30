@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="configuration" type="configurationType"/>
+  <xs:complexType name="storeType">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute type="positiveLong" name="max-elements" use="required"/>
+        <xs:attribute type="positiveInt" name="concurrency-level" default="16"/>
+        <xs:attribute type="xs:boolean" name="persist-on-shutdown" default="false"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="expirationType">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attributeGroup ref="expirationAttrs"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <xs:attributeGroup name="expirationAttrs">
+    <xs:attribute type="xs:long" name="lifespan"/>
+    <xs:attribute type="xs:long" name="idle-ttl"/>
+    <xs:attribute type="xs:boolean" name="eternal"/>
+  </xs:attributeGroup>
+
+  <xs:complexType name="cacheType">
+    <xs:sequence>
+      <xs:element name="eviction-policy">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:enumeration value="LFU"/>
+            <xs:enumeration value="LRU"/>
+            <xs:enumeration value="MRU"/>
+            <xs:enumeration value="FIFO"/>
+            <xs:enumeration value="LIFO"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element type="storeType" name="store"/>
+      <xs:element type="expirationType" name="expiration"/>
+      <xs:element type="eventListenersType" name="event-listeners" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute type="xs:string" name="name" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="eventListenersType">
+    <xs:sequence>
+      <xs:element type="xs:string" name="class" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="configurationType">
+    <xs:sequence>
+      <xs:element type="cacheType" name="cache" maxOccurs="unbounded" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute type="positiveInt" name="expired-cleaning-pool-size" default="1"/>
+    <xs:attribute type="positiveInt" name="async-cache-ops-parallelism"/>
+  </xs:complexType>
+
+  <xs:simpleType name="positiveInt">
+    <xs:restriction base="xs:int">
+      <xs:minInclusive value="1"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="positiveLong">
+    <xs:restriction base="xs:long">
+      <xs:minInclusive value="1"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+</xs:schema>
