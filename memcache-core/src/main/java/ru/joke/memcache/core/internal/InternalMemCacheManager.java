@@ -2,7 +2,9 @@ package ru.joke.memcache.core.internal;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import ru.joke.memcache.core.LifecycleException;
 import ru.joke.memcache.core.MemCache;
+import ru.joke.memcache.core.MemCacheException;
 import ru.joke.memcache.core.MemCacheManager;
 import ru.joke.memcache.core.configuration.CacheConfiguration;
 import ru.joke.memcache.core.configuration.Configuration;
@@ -20,40 +22,75 @@ public final class InternalMemCacheManager implements MemCacheManager {
     private static final Logger logger = LoggerFactory.getLogger(InternalMemCacheManager.class);
 
     private final Map<String, MapMemCache<?, ?>> caches = new ConcurrentHashMap<>();
+    private final ConfigurationSource configurationSource;
+    private final Configuration configuration;
+    private volatile ComponentStatus status = ComponentStatus.UNAVAILABLE;
     private ScheduledExecutorService cleaningThreadPool;
     private AsyncOpsInvoker asyncOpsInvoker;
     private List<Future<?>> scheduledCleaningTasks;
     private int cleaningPoolSize;
 
-    @Override
-    public synchronized void initialize() {
-        this.asyncOpsInvoker = new AsyncOpsInvoker(Runtime.getRuntime().availableProcessors() / 2);
-        this.cleaningThreadPool = Executors.newSingleThreadScheduledExecutor(new CleaningThreadFactory());
-        this.cleaningPoolSize = 1;
-        this.scheduledCleaningTasks = scheduleCleaningTasks(false);
+    public InternalMemCacheManager() {
+        this.configurationSource = ConfigurationSource.createDefault();
+        this.configuration = null;
+    }
+
+    public InternalMemCacheManager(@Nonnull ConfigurationSource configurationSource) {
+        this.configurationSource = Objects.requireNonNull(configurationSource, "configurationSource");
+        this.configuration = null;
+    }
+
+    public InternalMemCacheManager(@Nonnull Configuration configuration) {
+        this.configuration = Objects.requireNonNull(configuration, "configuration");
+        this.configurationSource = null;
     }
 
     @Override
-    public synchronized void initialize(@Nonnull ConfigurationSource configurationSource) {
-        final Configuration configuration = configurationSource.pull();
+    public synchronized void initialize() {
+        if (this.status != ComponentStatus.UNAVAILABLE) {
+            throw new LifecycleException("Status must be " + ComponentStatus.UNAVAILABLE + ". Current state is " + this.status);
+        }
+        
+        this.status = ComponentStatus.INITIALIZING;
 
-        this.asyncOpsInvoker = new AsyncOpsInvoker(configuration.asyncCacheOpsParallelismLevel());
-        this.cleaningPoolSize = configuration.cleaningPoolSize();
-        this.cleaningThreadPool = Executors.newScheduledThreadPool(this.cleaningPoolSize, new CleaningThreadFactory());
+        try {
+            final Configuration configuration =
+                    this.configurationSource == null
+                        ? this.configuration
+                        : this.configurationSource.pull();
 
-        configuration.cacheConfigurations().forEach(cacheConfiguration -> createCache(cacheConfiguration, false));
+            this.asyncOpsInvoker = new AsyncOpsInvoker(configuration.asyncCacheOpsParallelismLevel());
+            this.cleaningPoolSize = configuration.cleaningPoolSize();
+            this.cleaningThreadPool = Executors.newScheduledThreadPool(this.cleaningPoolSize, new CleaningThreadFactory());
 
-        this.scheduledCleaningTasks = scheduleCleaningTasks(false);
+            configuration.cacheConfigurations().forEach(cacheConfiguration -> createCache(cacheConfiguration, false));
+
+            this.scheduledCleaningTasks = scheduleCleaningTasks(false);
+        } catch (RuntimeException ex) {
+            this.status = ComponentStatus.FAILED;
+            logger.error("Unable to initialize cache manager", ex);
+            throw (ex instanceof MemCacheException ? ex : new MemCacheException(ex));
+        }
+
+        this.status = ComponentStatus.RUNNING;
     }
 
     @Override
     public synchronized boolean createCache(@Nonnull CacheConfiguration configuration) {
+        if (this.status != ComponentStatus.RUNNING && this.status != ComponentStatus.INITIALIZING) {
+            throw new LifecycleException("Cache creation available only in " + ComponentStatus.RUNNING + " or " + ComponentStatus.INITIALIZING + " state. Current state is " + this.status);
+        }
+        
         return createCache(configuration, true);
     }
 
     @Nonnull
     @Override
     public <K extends Serializable, V extends Serializable> Optional<MemCache<K, V>> getCache(@Nonnull String cacheName) {
+        if (this.status != ComponentStatus.RUNNING) {
+            throw new LifecycleException("Cache retrieval available only in " + ComponentStatus.RUNNING + " state. Current state is " + this.status);
+        }
+
         @SuppressWarnings("unchecked")
         final MemCache<K, V> cache = (MemCache<K, V>) this.caches.get(cacheName);
         return Optional.ofNullable(cache);
@@ -62,15 +99,40 @@ public final class InternalMemCacheManager implements MemCacheManager {
     @Nonnull
     @Override
     public Set<String> getCacheNames() {
-        return this.caches.keySet();
+        if (this.status != ComponentStatus.RUNNING) {
+            throw new LifecycleException("Cache names retrieval available only in " + ComponentStatus.RUNNING + " state. Current state is " + this.status);
+        }
+
+        return new HashSet<>(this.caches.keySet());
+    }
+
+    @Nonnull
+    @Override
+    public ComponentStatus status() {
+        return this.status;
     }
 
     @Override
     public synchronized void shutdown() {
-        this.cleaningThreadPool.shutdown();
-        this.asyncOpsInvoker.close();
 
-        this.caches.values().forEach(MapMemCache::shutdown);
+        if (this.status != ComponentStatus.RUNNING) {
+            throw new LifecycleException("Shutdown available only in " + ComponentStatus.RUNNING + " state. Current state is " + this.status);
+        }
+
+        this.status = ComponentStatus.STOPPING;
+
+        try {
+            this.cleaningThreadPool.shutdown();
+            this.asyncOpsInvoker.close();
+
+            this.caches.values().forEach(MapMemCache::shutdown);
+        } catch (RuntimeException ex) {
+            this.status = ComponentStatus.FAILED;
+            logger.error("Unable to initialize cache manager", ex);
+            throw (ex instanceof MemCacheException ? ex : new MemCacheException(ex));
+        }
+
+        this.status = ComponentStatus.TERMINATED;
     }
 
     private boolean createCache(final CacheConfiguration configuration, final boolean rescheduleCleaningTasks) {
@@ -88,7 +150,7 @@ public final class InternalMemCacheManager implements MemCacheManager {
                 persistentCacheRepository,
                 metadataFactory
         );
-        final boolean newCacheAdded = this.caches.putIfAbsent(cache.getName(), cache) == null;
+        final boolean newCacheAdded = this.caches.putIfAbsent(cache.name(), cache) == null;
         if (newCacheAdded) {
             cache.initialize();
 
@@ -124,7 +186,7 @@ public final class InternalMemCacheManager implements MemCacheManager {
                 final long minExpirationTimeout =
                         cachesToProcessing
                                 .stream()
-                                .map(MemCache::getConfiguration)
+                                .map(MemCache::configuration)
                                 .map(CacheConfiguration::expirationConfiguration)
                                 .mapToLong(expirationConfig -> Math.min(expirationConfig.idleTimeout(), expirationConfig.lifespan()))
                                 .min()

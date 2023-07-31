@@ -28,7 +28,7 @@ import java.util.function.Function;
  * @param <V> the type of the cache values, must be serializable
  * @author Alik
  */
-public interface MemCache<K extends Serializable, V extends Serializable> {
+public interface MemCache<K extends Serializable, V extends Serializable> extends Lifecycle {
 
     /**
      * Returns the name of the cache.
@@ -36,7 +36,7 @@ public interface MemCache<K extends Serializable, V extends Serializable> {
      * @return cannot be {@code null}.
      */
     @Nonnull
-    String getName();
+    String name();
 
     /**
      * Retrieves the value from the cache based on the key, if it exists in the cache.
@@ -185,7 +185,7 @@ public interface MemCache<K extends Serializable, V extends Serializable> {
      * @see CacheConfiguration
      */
     @Nonnull
-    CacheConfiguration getConfiguration();
+    CacheConfiguration configuration();
 
     boolean registerEventListener(@Nonnull CacheEntryEventListener<K, V> listener);
 

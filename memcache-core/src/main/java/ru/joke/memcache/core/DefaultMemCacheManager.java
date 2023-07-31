@@ -1,6 +1,7 @@
 package ru.joke.memcache.core;
 
 import ru.joke.memcache.core.configuration.CacheConfiguration;
+import ru.joke.memcache.core.configuration.Configuration;
 import ru.joke.memcache.core.configuration.ConfigurationSource;
 import ru.joke.memcache.core.internal.InternalMemCacheManager;
 
@@ -15,16 +16,23 @@ import java.util.Set;
 @ThreadSafe
 public final class DefaultMemCacheManager implements MemCacheManager, Closeable {
 
-    private final MemCacheManager delegateManager = new InternalMemCacheManager();
+    private final MemCacheManager delegateManager;
+
+    public DefaultMemCacheManager() {
+        this.delegateManager = new InternalMemCacheManager();
+    }
+
+    public DefaultMemCacheManager(@Nonnull ConfigurationSource configurationSource) {
+        this.delegateManager = new InternalMemCacheManager(configurationSource);
+    }
+
+    public DefaultMemCacheManager(@Nonnull Configuration configuration) {
+        this.delegateManager = new InternalMemCacheManager(configuration);
+    }
 
     @Override
     public void initialize() {
         this.delegateManager.initialize();
-    }
-
-    @Override
-    public void initialize(@Nonnull ConfigurationSource configurationSource) {
-        this.delegateManager.initialize(configurationSource);
     }
 
     @Override
@@ -43,6 +51,12 @@ public final class DefaultMemCacheManager implements MemCacheManager, Closeable 
     @Nonnull
     public Set<String> getCacheNames() {
         return this.delegateManager.getCacheNames();
+    }
+
+    @Nonnull
+    @Override
+    public ComponentStatus status() {
+        return this.delegateManager.status();
     }
 
     @Override

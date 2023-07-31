@@ -24,7 +24,7 @@ public final class MemCacheBusAdapter<K extends Serializable, V extends Serializ
 
     @Override
     public String getName() {
-        return this.memCache.getName();
+        return this.memCache.name();
     }
 
     @Nonnull

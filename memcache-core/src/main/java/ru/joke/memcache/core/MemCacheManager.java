@@ -1,7 +1,6 @@
 package ru.joke.memcache.core;
 
 import ru.joke.memcache.core.configuration.CacheConfiguration;
-import ru.joke.memcache.core.configuration.ConfigurationSource;
 
 import javax.annotation.CheckReturnValue;
 import javax.annotation.Nonnull;
@@ -9,11 +8,7 @@ import java.io.Serializable;
 import java.util.Optional;
 import java.util.Set;
 
-public interface MemCacheManager {
-
-    void initialize();
-
-    void initialize(@Nonnull ConfigurationSource configurationSource);
+public interface MemCacheManager extends Lifecycle {
 
     boolean createCache(@Nonnull CacheConfiguration configuration);
 
@@ -23,6 +18,4 @@ public interface MemCacheManager {
 
     @Nonnull
     Set<String> getCacheNames();
-
-    void shutdown();
 }

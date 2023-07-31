@@ -1,7 +1,8 @@
 package ru.joke.memcache.core.internal;
 
-import ru.joke.memcache.core.ManagedCache;
+import ru.joke.memcache.core.LifecycleException;
 import ru.joke.memcache.core.MemCache;
+import ru.joke.memcache.core.MemCacheException;
 import ru.joke.memcache.core.configuration.CacheConfiguration;
 import ru.joke.memcache.core.configuration.MemoryStoreConfiguration;
 import ru.joke.memcache.core.events.*;
@@ -20,7 +21,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 @ThreadSafe
-final class MapMemCache<K extends Serializable, V extends Serializable> implements MemCache<K, V>, ManagedCache {
+final class MapMemCache<K extends Serializable, V extends Serializable> implements MemCache<K, V> {
 
     private final CacheConfiguration configuration;
     private final AsyncOpsInvoker asyncOpsInvoker;
@@ -30,12 +31,15 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
     private final ThreadLocal<MemCacheEntry<K, V>> oldEntryContainer;
     private final boolean eternal;
     private final PersistentCacheRepository persistentCacheRepository;
+
+    private volatile ComponentStatus status;
     private volatile Map<K, MemCacheEntry<K, V>>[] segments;
 
     MapMemCache(@Nonnull CacheConfiguration configuration,
                 @Nonnull AsyncOpsInvoker asyncOpsInvoker,
                 @Nonnull PersistentCacheRepository persistentCacheRepository,
                 @Nonnull EntryMetadataFactory metadataFactory) {
+        this.status = ComponentStatus.UNAVAILABLE;
         this.configuration = configuration;
         this.asyncOpsInvoker = asyncOpsInvoker;
         this.oldEntryContainer = new ThreadLocal<>();
@@ -83,24 +87,38 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
 
     @Nonnull
     @Override
-    public String getName() {
+    public String name() {
         return this.configuration.cacheName();
     }
 
     @Nonnull
     @Override
-    public CacheConfiguration getConfiguration() {
+    public CacheConfiguration configuration() {
         return this.configuration;
     }
 
     @Override
     public boolean registerEventListener(@Nonnull CacheEntryEventListener<K, V> listener) {
+        if (this.status != ComponentStatus.RUNNING && this.status != ComponentStatus.INITIALIZING) {
+            throw new LifecycleException("Event listener registration available only in " + ComponentStatus.RUNNING + " or " + ComponentStatus.INITIALIZING + " state. Current state is " + this.status);
+        }
+
         return this.listeners.add(listener);
     }
 
     @Override
     public boolean deregisterEventListener(@Nonnull CacheEntryEventListener<K, V> listener) {
+        if (this.status != ComponentStatus.RUNNING && this.status != ComponentStatus.INITIALIZING) {
+            throw new LifecycleException("Event listener deregistration available only in " + ComponentStatus.RUNNING + " or " + ComponentStatus.INITIALIZING + " state. Current state is " + this.status);
+        }
+
         return this.listeners.removeIf(l -> l.equals(listener));
+    }
+
+    @Nonnull
+    @Override
+    public ComponentStatus status() {
+        return this.status;
     }
 
     @Nonnull
@@ -327,16 +345,38 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
 
     @Override
     public synchronized void initialize() {
-        // TODO state transition and checks
+        if (this.status != ComponentStatus.UNAVAILABLE) {
+            throw new LifecycleException("Cache initialization available only in " + ComponentStatus.UNAVAILABLE + " state. Current state is " + this.status);
+        }
 
-        restoreFromRepository();
+        this.status = ComponentStatus.INITIALIZING;
+
+        try {
+            restoreFromRepository();
+        } catch (RuntimeException ex) {
+            this.status = ComponentStatus.FAILED;
+            throw (ex instanceof MemCacheException ? ex : new MemCacheException(ex));
+        }
+
+        this.status = ComponentStatus.RUNNING;
     }
 
     @Override
     public synchronized void shutdown() {
-        // TODO state transition and checks
+        if (this.status != ComponentStatus.RUNNING) {
+            throw new LifecycleException("Cache shutdown available only in " + ComponentStatus.RUNNING + " state. Current state is " + this.status);
+        }
 
-        persistToRepository();
+        this.status = ComponentStatus.STOPPING;
+
+        try {
+            persistToRepository();
+        } catch (RuntimeException ex) {
+            this.status = ComponentStatus.FAILED;
+            throw (ex instanceof MemCacheException ? ex : new MemCacheException(ex));
+        }
+
+        this.status = ComponentStatus.TERMINATED;
     }
 
     boolean eternal() {

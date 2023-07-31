@@ -4,6 +4,7 @@ import one.nio.serial.ObjectInputChannel;
 import one.nio.serial.ObjectOutputChannel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import ru.joke.memcache.core.MemCacheException;
 import ru.joke.memcache.core.configuration.CacheConfiguration;
 import ru.joke.memcache.core.configuration.PersistentStoreConfiguration;
 
@@ -53,7 +54,7 @@ final class DiskPersistentCacheRepository implements PersistentCacheRepository {
             writeTo(out, entries);
         } catch (IOException ex) {
             logger.error("Unable to serialize entries", ex);
-            throw new RuntimeException(ex);
+            throw new MemCacheException(ex);
         }
     }
 
@@ -102,7 +103,7 @@ final class DiskPersistentCacheRepository implements PersistentCacheRepository {
         try {
             Files.deleteIfExists(this.dataStore.toPath());
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new MemCacheException(e);
         }
     }
 

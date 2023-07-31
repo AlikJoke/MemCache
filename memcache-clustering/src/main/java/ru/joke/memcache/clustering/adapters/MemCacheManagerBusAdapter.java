@@ -2,6 +2,7 @@ package ru.joke.memcache.clustering.adapters;
 
 import ru.joke.cache.bus.core.Cache;
 import ru.joke.cache.bus.core.CacheManager;
+import ru.joke.cache.bus.core.impl.ImmutableComponentState;
 import ru.joke.cache.bus.core.state.ComponentState;
 import ru.joke.memcache.core.MemCache;
 import ru.joke.memcache.core.MemCacheManager;
@@ -43,8 +44,13 @@ public class MemCacheManagerBusAdapter implements CacheManager {
     @Nonnull
     @Override
     public ComponentState state() {
-        // TODO
-        throw new UnsupportedOperationException();
+        final ComponentState.Status status = switch (this.memCacheManager.status()) {
+            case UNAVAILABLE, TERMINATED, STOPPING -> ComponentState.Status.DOWN;
+            case INITIALIZING -> ComponentState.Status.UP_NOT_READY;
+            case RUNNING -> ComponentState.Status.UP_OK;
+            case FAILED -> ComponentState.Status.UP_FATAL_BROKEN;
+        };
+        return new ImmutableComponentState(CACHE_MANAGER_ID, status);
     }
 
     private <K extends Serializable, V extends Serializable> Optional<Cache<K, V>> composeCacheAdapter(@Nonnull String cacheName) {

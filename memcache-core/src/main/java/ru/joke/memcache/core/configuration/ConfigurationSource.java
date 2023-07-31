@@ -47,6 +47,12 @@ public interface ConfigurationSource {
         @Override
         public Configuration pull() {
             final Set<CacheConfiguration> cacheConfigurations = Set.copyOf(this.configurations);
+            if (asyncCacheOpsParallelismLevel <= 0) {
+                throw new InvalidConfigurationException("Async cache operations parallelism level must be positive");
+            } else if (cleaningPoolSize <= 0) {
+                throw new InvalidConfigurationException("Cleaning pool size must be positive");
+            }
+
             return new Configuration() {
                 @Override
                 @Nonnull
