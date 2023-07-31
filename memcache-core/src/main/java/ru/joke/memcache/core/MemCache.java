@@ -1,493 +1,193 @@
 package ru.joke.memcache.core;
 
 import ru.joke.memcache.core.configuration.CacheConfiguration;
-import ru.joke.memcache.core.configuration.StoreConfiguration;
-import ru.joke.memcache.core.events.*;
+import ru.joke.memcache.core.events.CacheEntryEventListener;
 
+import javax.annotation.CheckReturnValue;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serializable;
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-@ThreadSafe
-final class MemCache<K extends Serializable, V extends Serializable> implements Cache<K, V> {
+/**
+ * An abstract representation of a cache, independent of the specific store type implementation.<br>
+ * Supports basic operations for working with the cache:
+ *
+ * <ul>
+ * <li>Retrieving an object from the cache by key</li>
+ * <li>Removing an object from the cache by key</li>
+ * <li>Adding an item to the cache</li>
+ * <li>Clearing the cache contents</li>
+ * <ul>
+ *
+ * @param <K> the type of the cache keys, must be serializable
+ * @param <V> the type of the cache values, must be serializable
+ * @author Alik
+ */
+public interface MemCache<K extends Serializable, V extends Serializable> {
 
-    private final CacheConfiguration configuration;
-    private final AsyncOpsInvoker asyncOpsInvoker;
-    private final EntryMetadataFactory entryMetadataFactory;
-    private final Set<EntryMetadata<?, K>> entriesMetadata;
-    private final List<CacheEntryEventListener<K, V>> listeners;
-    private final ThreadLocal<Entry<K, V>> oldEntryContainer;
-    private final boolean eternal;
-    private volatile Map<K, Entry<K, V>>[] segments;
+    /**
+     * Returns the name of the cache.
+     *
+     * @return cannot be {@code null}.
+     */
+    @Nonnull
+    String getName();
 
-    public MemCache(@Nonnull CacheConfiguration configuration, @Nonnull AsyncOpsInvoker asyncOpsInvoker) {
-        this.configuration = configuration;
-        this.asyncOpsInvoker = asyncOpsInvoker;
-        this.oldEntryContainer = new ThreadLocal<>();
-        this.eternal = configuration.expirationConfiguration().eternal();
-        this.segments = createSegments();
-        this.listeners = new CopyOnWriteArrayList<>(configuration.registeredEventListeners());
-        this.entryMetadataFactory = new EntryMetadataFactory(configuration);
+    /**
+     * Retrieves the value from the cache based on the key, if it exists in the cache.
+     *
+     * @param key the key of the element in the cache, cannot be {@code null}.
+     * @return the value the cache associated with the specified key, wrapped in {@link Optional};
+     * the value may be absent.
+     */
+    @Nonnull
+    @CheckReturnValue
+    Optional<V> get(@Nonnull K key);
 
-        final long maxElements = configuration.storeConfiguration().maxElements();
-        this.entriesMetadata = new ConcurrentSkipListSet<>() {
-            @Override
-            public boolean add(EntryMetadata<?, K> metadata) {
-                final boolean overflow = size() >= maxElements;
+    /**
+     * Removes an element from the cache based on the key. Returns the value previously associated with the key.
+     * If an element with the given key does not exist, returns {@code Optional.empty()}.
+     *
+     * @param key the key of the element in the cache, cannot be {@code null}.
+     * @return the value previously associated with the key, wrapped in {@link Optional}. The value may be absent.
+     */
+    @Nonnull
+    @CheckReturnValue
+    Optional<V> remove(@Nonnull K key);
 
-                if (overflow) {
-                    if (contains(metadata)) {
-                        return false;
-                    }
+    /**
+     * Removes an element from the cache based on the key if value equal to current bounded with key value.
+     *
+     * @param key   the key of the element in the cache, cannot be {@code null}.
+     * @param value the value to removing, cannot be {@code null}.
+     * @return {@code true} if the cache contain such key and associated value and element was removed, {@code false} otherwise.
+     */
+    boolean remove(@Nonnull K key, @Nonnull V value);
 
-                    // Removing by remove(..) may be run concurrent - its normal
-                    synchronized (this) {
+    /**
+     * Adds an element to the cache. Replaces the existing element with a new value if the element already exists the cache.
+     *
+     * @param key   the key of the element, cannot {@code null}.
+     * @param value the value of the element, can be {@code null}.
+     * @return the value previously associated with the key, wrapped in {@link Optional}. The value may be absent.
+     */
+    @Nonnull
+    @CheckReturnValue
+    Optional<V> put(@Nonnull K key, @Nullable V value);
 
-                        // Firstly we will try to remove expired entries if possible
-                        if (!eternal && size() >= maxElements) {
-                            clearExpired();
-                        }
+    /**
+     * Adds an element the cache if there is no value associated with the given key.
+     *
+     * @param key   the key of the element, cannot be {@code null}.
+     * @param value the value of the element, can be {@code null}.
+     * @return {@code true} if the value was added to cache,
+     * {@code false} otherwise if another value already bounded to this key.
+     */
+    Optional<V> putIfAbsent(@Nonnull K key, @Nullable V value);
 
-                        while (size() >= maxElements) {
+    /**
+     * Clears this cache.
+     */
+    void clear();
 
-                            final EntryMetadata<?, K> removedEntry = first();
-                            if (removedEntry != null) {
-                                MemCache.this.remove(removedEntry.key());
-                            }
-                        }
+    /**
+     * Merges an existing element in the cache with a new value according to the provided merge function.
+     * This operation allows avoiding conflicts when multiple threads modify the same element
+     * (e.g., when modifying an object that contains a collection or an associative array) concurrently.<br>
+     * If the element does not exist in the cache, it will be added to the cache without merging. <br>
+     * The merge function should return {@code null} if the value for the key should be removed from the cache. <br>
+     * The implementation of this operation should be thread-safe and take into account the possibility of
+     * concurrent modification of the element in the cache by another thread.
+     *
+     * @param key           the key of the element in the cache; cannot be {@code null}.
+     * @param value         the new value of the element to add or modify; cannot be {@code null}.
+     * @param mergeFunction the merge function to merge the new value with the existing value in the cache; cannot be {@code null}.
+     * @return the new value associated with the specified key, or {@code Optional.empty()} if no value is associated with the key
+     */
+    Optional<V> merge(@Nonnull K key, @Nonnull V value, @Nonnull BiFunction<? super V, ? super V, ? extends V> mergeFunction);
 
-                        return super.add(metadata);
-                    }
-                }
+    /**
+     * Computes the value of an element in the cache if it does not already exist.
+     * If an element with the given key already exists, it will be returned and no computation will occur.
+     * The semantics of this operation are similar to the {@linkplain ConcurrentMap#computeIfAbsent(Object, Function)} method.
+     *
+     * @param key           the key of the element in the cache; cannot {@code null}.
+     * @param valueFunction the function to compute the value of the element if it is absent in the cache; cannot be {@code null}.
+     * @return the value of the element from the cache (either existing the time of the call or added as a result), wrapped in {@link Optional}.
+     */
+    @CheckReturnValue
+    @Nonnull
+    Optional<V> computeIfAbsent(@Nonnull K key, @Nonnull Function<? super K, ? extends V> valueFunction);
 
-                return super.add(metadata);
-            }
-        };
-    }
+    @CheckReturnValue
+    @Nonnull
+    Optional<V> compute(@Nonnull K key, @Nonnull BiFunction<? super K, ? super V, ? extends V> remappingFunction);
+
+    @CheckReturnValue
+    @Nonnull
+    Optional<V> computeIfPresent(@Nonnull K key, @Nonnull BiFunction<? super K, ? super V, ? extends V> remappingFunction);
+
+    boolean replace(@Nonnull K key, @Nullable V oldValue, @Nullable V newValue);
 
     @Nonnull
-    @Override
-    public String getName() {
-        return this.configuration.cacheName();
-    }
+    @CheckReturnValue
+    CompletableFuture<Optional<V>> getAsync(@Nonnull K key);
 
     @Nonnull
-    @Override
-    public CacheConfiguration getConfiguration() {
-        return this.configuration;
-    }
-
-    @Override
-    public boolean registerEventListener(@Nonnull CacheEntryEventListener<K, V> listener) {
-        return this.listeners.add(listener);
-    }
-
-    @Override
-    public boolean deregisterEventListener(@Nonnull CacheEntryEventListener<K, V> listener) {
-        return this.listeners.removeIf(l -> l.equals(listener));
-    }
+    @CheckReturnValue
+    CompletableFuture<Optional<V>> removeAsync(@Nonnull K key);
 
     @Nonnull
-    @Override
-    public Optional<V> get(@Nonnull K key) {
-        final Map<K, Entry<K, V>> segment = computeSegment(key);
-        final Entry<K, V> entry = segment.get(key);
-        if (entry == null) {
-            return Optional.empty();
-        }
-
-        entry.metadata.onUsage();
-
-        return Optional.of(entry.value);
-    }
+    @CheckReturnValue
+    CompletableFuture<Boolean> removeAsync(@Nonnull K key, @Nonnull V value);
 
     @Nonnull
-    @Override
-    public Optional<V> remove(@Nonnull K key) {
-        return computeIfPresent(key, (k, v) -> null, true);
-    }
-
-    @Override
-    public boolean remove(@Nonnull K key, @Nonnull V value) {
-        return replace(key, value, null);
-    }
+    @CheckReturnValue
+    CompletableFuture<Optional<V> >putAsync(@Nonnull K key, @Nullable V value);
 
     @Nonnull
-    @Override
-    public Optional<V> put(@Nonnull final K key, @Nullable final V value) {
-        return compute(key, (k, v) -> value, true, false);
-    }
-
-    @Override
-    public Optional<V> putIfAbsent(@Nonnull K key, @Nullable V value) {
-        return compute(key, (k, v) -> v == null ? value : v, true, false);
-    }
-
-    @Override
-    public void clear() {
-        final Map<K, Entry<K, V>>[] newSegments = createSegments();
-        // not atomic, but not terrible for entriesMetadata; floating entries (i.e. trash) added between next two constructions will be removed eventually
-        this.entriesMetadata.clear();
-        this.segments = newSegments;
-
-        final CacheEntriesEvent<K, V> clearEvent = new DefaultCacheEntriesEvent<>(EventType.REMOVED, this);
-        this.listeners.forEach(l -> l.onBatchEvent(clearEvent));
-    }
-
-    @Override
-    public Optional<V> merge(@Nonnull K key, @Nonnull V value, @Nonnull BiFunction<? super V, ? super V, ? extends V> mergeFunction) {
-        return this.compute(key, (k, oldV) -> oldV == null ? value : mergeFunction.apply(oldV, value));
-    }
+    @CheckReturnValue
+    CompletableFuture<Optional<V>> putIfAbsentAsync(@Nonnull K key, @Nullable V value);
 
     @Nonnull
-    @Override
-    public Optional<V> computeIfAbsent(@Nonnull K key, @Nonnull Function<? super K, ? extends V> valueFunction) {
-
-        final Map<K, Entry<K, V>> segment = computeSegment(key);
-        final Entry<K, V> newEntry = segment.computeIfAbsent(
-                key,
-                k -> {
-                    final V value = valueFunction.apply(k);
-                    if (value == null) {
-                        return null;
-                    }
-
-                    final Entry<K, V> result = new Entry<>(
-                            value,
-                            this.entryMetadataFactory.create(k)
-                    );
-                    this.oldEntryContainer.set(result);
-
-                    this.entriesMetadata.add(result.metadata);
-                    return result;
-                }
-        );
-
-        if (newEntry == null || this.oldEntryContainer.get() == null) {
-            return Optional.empty();
-        }
-
-        this.oldEntryContainer.remove();
-
-        final Optional<V> newValue = Optional.of(newEntry.value);
-        final EventType eventType = EventType.ADDED;
-        final var event = new DefaultCacheEntryEvent<>(key, Optional.empty(), newValue, eventType, this);
-        this.listeners.forEach(l -> l.onEvent(event));
-
-        return newValue;
-    }
+    @CheckReturnValue
+    CompletableFuture<Void> clearAsync();
 
     @Nonnull
-    @Override
-    public Optional<V> compute(@Nonnull K key, @Nonnull BiFunction<? super K, ? super V, ? extends V> remappingFunction) {
-        return compute(key, remappingFunction, false, false);
-    }
+    @CheckReturnValue
+    CompletableFuture<Optional<V>> mergeAsync(@Nonnull K key, @Nonnull V value, @Nonnull BiFunction<? super V, ? super V, ? extends V> mergeFunction);
 
     @Nonnull
-    @Override
-    public Optional<V> computeIfPresent(@Nonnull K key, @Nonnull BiFunction<? super K, ? super V, ? extends V> remappingFunction) {
-        return computeIfPresent(key, remappingFunction, false);
-    }
-
-    @Override
-    public boolean replace(@Nonnull K key, @Nullable V oldValue, @Nullable V newValue) {
-
-        final Map<K, Entry<K, V>> segment = computeSegment(key);
-        final Entry<K, V> newEntry = segment.compute(
-                key,
-                (k, v) -> {
-                    this.oldEntryContainer.set(v);
-
-                    if (v == null && oldValue != null || v != null && oldValue != v.value) {
-                        return v;
-                    }
-
-                    if (newValue == null && v == null) {
-                        return null;
-                    } else if (newValue == null) {
-                        this.entriesMetadata.remove(v.metadata);
-                        return null;
-                    }
-
-                    final Entry<K, V> result = new Entry<>(
-                            newValue,
-                            v == null ? this.entryMetadataFactory.create(k) : v.metadata
-                    );
-
-                    if (v == null) {
-                        this.entriesMetadata.add(result.metadata);
-                    }
-
-                    return result;
-                }
-        );
-
-        final Entry<K, V> oldEntry = this.oldEntryContainer.get();
-        if (newEntry == oldEntry) {
-            this.oldEntryContainer.remove();
-            return false;
-        }
-
-        try {
-            final EventType eventType = oldValue == null
-                                            ? EventType.ADDED
-                                            : newValue == null
-                                                ? EventType.REMOVED
-                                                : EventType.UPDATED;
-            final var event = new DefaultCacheEntryEvent<>(key, oldValue, newValue, eventType, this);
-            this.listeners.forEach(l -> l.onEvent(event));
-
-            return true;
-        } finally {
-            this.oldEntryContainer.remove();
-        }
-    }
+    @CheckReturnValue
+    CompletableFuture<Optional<V>> computeIfAbsentAsync(@Nonnull K key, @Nonnull Function<? super K, ? extends V> valueFunction);
 
     @Nonnull
-    @Override
-    public CompletableFuture<Optional<V>> getAsync(@Nonnull K key) {
-        return this.asyncOpsInvoker.invoke(() -> get(key));
-    }
+    @CheckReturnValue
+    CompletableFuture<Optional<V>> computeAsync(@Nonnull K key, @Nonnull BiFunction<? super K, ? super V, ? extends V> remappingFunction);
 
     @Nonnull
-    @Override
-    public CompletableFuture<Optional<V>> removeAsync(@Nonnull K key) {
-        return this.asyncOpsInvoker.invoke(() -> remove(key));
-    }
+    @CheckReturnValue
+    CompletableFuture<Optional<V>> computeIfPresentAsync(@Nonnull K key, @Nonnull BiFunction<? super K, ? super V, ? extends V> remappingFunction);
 
     @Nonnull
-    @Override
-    public CompletableFuture<Boolean> removeAsync(@Nonnull K key, @Nonnull V value) {
-        return this.asyncOpsInvoker.invoke(() -> remove(key, value));
-    }
+    @CheckReturnValue
+    CompletableFuture<Boolean> replaceAsync(@Nonnull K key, @Nullable V oldValue, @Nullable V newValue);
 
+    /**
+     * Returns cache configuration.
+     *
+     * @return the cache configuration, cannot be {@code null}.
+     * @see CacheConfiguration
+     */
     @Nonnull
-    @Override
-    public CompletableFuture<Optional<V>> putAsync(@Nonnull K key, @Nullable V value) {
-        return this.asyncOpsInvoker.invoke(() -> put(key, value));
-    }
+    CacheConfiguration getConfiguration();
 
-    @Nonnull
-    @Override
-    public CompletableFuture<Optional<V>> putIfAbsentAsync(@Nonnull K key, @Nullable V value) {
-        return this.asyncOpsInvoker.invoke(() -> putIfAbsent(key, value));
-    }
+    boolean registerEventListener(@Nonnull CacheEntryEventListener<K, V> listener);
 
-    @Nonnull
-    @Override
-    public CompletableFuture<Void> clearAsync() {
-        return this.asyncOpsInvoker.invoke(this::clear);
-    }
-
-    @Nonnull
-    @Override
-    public CompletableFuture<Optional<V>> mergeAsync(@Nonnull K key, @Nonnull V value, @Nonnull BiFunction<? super V, ? super V, ? extends V> mergeFunction) {
-        return this.asyncOpsInvoker.invoke(() -> merge(key, value, mergeFunction));
-    }
-
-    @Nonnull
-    @Override
-    public CompletableFuture<Optional<V>> computeIfAbsentAsync(@Nonnull K key, @Nonnull Function<? super K, ? extends V> valueFunction) {
-        return this.asyncOpsInvoker.invoke(() -> computeIfAbsent(key, valueFunction));
-    }
-
-    @Nonnull
-    @Override
-    public CompletableFuture<Optional<V>> computeAsync(@Nonnull K key, @Nonnull BiFunction<? super K, ? super V, ? extends V> remappingFunction) {
-        return this.asyncOpsInvoker.invoke(() -> compute(key, remappingFunction));
-    }
-
-    @Nonnull
-    @Override
-    public CompletableFuture<Optional<V>> computeIfPresentAsync(@Nonnull K key, @Nonnull BiFunction<? super K, ? super V, ? extends V> remappingFunction) {
-        return this.asyncOpsInvoker.invoke(() -> computeIfPresent(key, remappingFunction));
-    }
-
-    @Nonnull
-    @Override
-    public CompletableFuture<Boolean> replaceAsync(@Nonnull K key, @Nullable V oldValue, @Nullable V newValue) {
-        return this.asyncOpsInvoker.invoke(() -> replace(key, oldValue, newValue));
-    }
-
-    @Override
-    public synchronized void initialize() {
-        // TODO state transition and checks
-
-        if (this.configuration.storeConfiguration().persistOnShutdown()) {
-            restoreFromDisk();
-        }
-    }
-
-    @Override
-    public synchronized void shutdown() {
-        // TODO state transition and checks
-
-        if (this.configuration.storeConfiguration().persistOnShutdown()) {
-            persistToDisk();
-        }
-    }
-
-    boolean eternal() {
-        return this.eternal;
-    }
-
-    void clearExpired() {
-        final long idleExpirationTimeout = this.configuration.expirationConfiguration().idleExpirationTimeout();
-        final long idleExpirationTime = System.currentTimeMillis() - idleExpirationTimeout;
-        this.entriesMetadata.forEach(metadata -> {
-            if (metadata.expiredByLifespanAt() <= System.currentTimeMillis() || metadata.lastAccessed() <= idleExpirationTime) {
-                // eviction of element from cache data
-                compute(metadata.key(), (k, v) -> {
-                    this.entriesMetadata.remove(metadata);
-                    return null;
-                }, true, true);
-            }
-        });
-    }
-
-    private void restoreFromDisk() {
-        // TODO
-    }
-
-    private void persistToDisk() {
-        for (final Map<K, Entry<K, V>> segment : this.segments) {
-            // TODO
-        }
-    }
-
-    private Optional<V> computeIfPresent(
-            @Nonnull K key,
-            @Nonnull BiFunction<? super K, ? super V, ? extends V> remappingFunction,
-            boolean returnOldValue) {
-        final Map<K, Entry<K, V>> segment = computeSegment(key);
-        final Entry<K, V> newEntry = segment.computeIfPresent(
-                key,
-                (k, v) -> {
-                    final V newVal = remappingFunction.apply(k, v.value);
-                    this.oldEntryContainer.set(v);
-
-                    if (newVal == null) {
-                        this.entriesMetadata.remove(v.metadata);
-                        return null;
-                    }
-
-                    return new Entry<>(newVal, v.metadata);
-                }
-        );
-
-        final Entry<K, V> oldEntry = this.oldEntryContainer.get();
-        if (oldEntry == null) {
-            return Optional.empty();
-        }
-
-        final Optional<V> oldValue = Optional.of(oldEntry.value);
-        final Optional<V> newValue = newEntry == null ? Optional.empty() : Optional.of(newEntry.value);
-        try {
-            final EventType eventType = newValue.isEmpty()
-                                            ? EventType.REMOVED
-                                            : EventType.UPDATED;
-            final var event = new DefaultCacheEntryEvent<>(key, oldValue, newValue, eventType, this);
-            this.listeners.forEach(l -> l.onEvent(event));
-
-            return returnOldValue ? oldValue : newValue;
-        } finally {
-            this.oldEntryContainer.remove();
-        }
-    }
-
-    private Optional<V> compute(
-            @Nonnull K key,
-            @Nonnull BiFunction<? super K, ? super V, ? extends V> remappingFunction,
-            boolean returnOldValue,
-            boolean ifEntryRemovedPopulateExpirationEvent) {
-
-        final Map<K, Entry<K, V>> segment = computeSegment(key);
-        final Entry<K, V> newEntry = segment.compute(
-                key,
-                (k, v) -> {
-                    this.oldEntryContainer.set(v);
-
-                    final V newVal = remappingFunction.apply(k, v == null ? null : v.value);
-                    if (newVal == null && v == null) {
-                        return null;
-                    } else if (newVal == null) {
-                        this.entriesMetadata.remove(v.metadata);
-                        return null;
-                    } else if (v != null && v.value.equals(newVal)) {
-                        return v;
-                    }
-
-                    final Entry<K, V> result = new Entry<>(
-                            newVal,
-                            v == null ? this.entryMetadataFactory.create(k) : v.metadata
-                    );
-
-                    if (v == null) {
-                        this.entriesMetadata.add(result.metadata);
-                    }
-
-                    return result;
-                }
-        );
-
-        final Entry<K, V> oldEntry = this.oldEntryContainer.get();
-        if (newEntry == null && oldEntry == null) {
-            return Optional.empty();
-        } else if (newEntry == oldEntry) {
-            this.oldEntryContainer.remove();
-            return Optional.empty();
-        }
-
-        final Optional<V> oldValue = oldEntry == null ? Optional.empty() : Optional.of(oldEntry.value);
-        final Optional<V> newValue = newEntry == null ? Optional.empty() : Optional.of(newEntry.value);
-        try {
-            final EventType eventType = oldValue.isEmpty()
-                                            ? EventType.ADDED
-                                            : newValue.isEmpty()
-                                                ? ifEntryRemovedPopulateExpirationEvent
-                                                    ? EventType.EXPIRED
-                                                    : EventType.REMOVED
-                                                : EventType.UPDATED;
-            final var event = new DefaultCacheEntryEvent<>(key, oldValue, newValue, eventType, this);
-            this.listeners.forEach(l -> l.onEvent(event));
-
-            return returnOldValue ? oldValue : newValue;
-        } finally {
-            this.oldEntryContainer.remove();
-        }
-    }
-
-    private Map<K, Entry<K, V>> computeSegment(final K key) {
-        final int keyHash = key.hashCode();
-        final int hash = keyHash ^ (keyHash >>> 16);
-        return this.segments[this.segments.length - 1 & hash];
-    }
-
-    private Map<K, Entry<K, V>>[] createSegments() {
-        final StoreConfiguration storeConfiguration = configuration.storeConfiguration();
-        final int concurrencyLevel = storeConfiguration.concurrencyLevel();
-        final int segmentsCount = concurrencyLevel % 2 == 1 ? concurrencyLevel + 1 : concurrencyLevel;
-
-        @SuppressWarnings("unchecked")
-        final Map<K, Entry<K, V>>[] segments = new ConcurrentHashMap[segmentsCount];
-        for (int i = 0; i < segmentsCount; i++) {
-            segments[i] = new ConcurrentHashMap<>((int) storeConfiguration.maxElements() / segmentsCount);
-        }
-
-        return segments;
-    }
-
-    private record Entry<K, V>(V value, EntryMetadata<?, K> metadata) {
-    }
+    boolean deregisterEventListener(@Nonnull CacheEntryEventListener<K, V> listener);
 }

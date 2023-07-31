@@ -3,9 +3,11 @@ package ru.joke.memcache.core.configuration;
 import ru.joke.memcache.core.events.CacheEntryEventListener;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 public interface CacheConfiguration {
@@ -14,7 +16,10 @@ public interface CacheConfiguration {
     String cacheName();
 
     @Nonnull
-    StoreConfiguration storeConfiguration();
+    MemoryStoreConfiguration memoryStoreConfiguration();
+
+    @Nonnull
+    Optional<PersistentStoreConfiguration> persistentStoreConfiguration();
 
     @Nonnull
     EvictionPolicy evictionPolicy();
@@ -24,6 +29,19 @@ public interface CacheConfiguration {
 
     <K extends Serializable, V extends Serializable> List<CacheEntryEventListener<K, V>> registeredEventListeners();
 
+    enum EvictionPolicy {
+
+        LFU,
+
+        LRU,
+
+        MRU,
+
+        FIFO,
+
+        LIFO
+    }
+
     @Nonnull
     static Builder builder() {
         return new Builder();
@@ -32,7 +50,8 @@ public interface CacheConfiguration {
     class Builder {
 
         private String cacheName;
-        private StoreConfiguration storeConfiguration;
+        private MemoryStoreConfiguration memoryStoreConfiguration;
+        private PersistentStoreConfiguration persistentStoreConfiguration;
         private EvictionPolicy evictionPolicy;
         private ExpirationConfiguration expirationConfiguration;
         private List<CacheEntryEventListener<?, ?>> listeners = new ArrayList<>();
@@ -44,8 +63,14 @@ public interface CacheConfiguration {
         }
 
         @Nonnull
-        public Builder setStoreConfiguration(@Nonnull final StoreConfiguration storeConfiguration) {
-            this.storeConfiguration = storeConfiguration;
+        public Builder setMemoryStoreConfiguration(@Nonnull final MemoryStoreConfiguration memoryStoreConfiguration) {
+            this.memoryStoreConfiguration = memoryStoreConfiguration;
+            return this;
+        }
+
+        @Nonnull
+        public Builder setPersistentStoreConfiguration(@Nullable final PersistentStoreConfiguration persistentStoreConfiguration) {
+            this.persistentStoreConfiguration = persistentStoreConfiguration;
             return this;
         }
 
@@ -75,6 +100,7 @@ public interface CacheConfiguration {
 
         @Nonnull
         public CacheConfiguration build() {
+            final var persistentStoreConfig = Optional.ofNullable(this.persistentStoreConfiguration);
             return new CacheConfiguration() {
                 @Override
                 @Nonnull
@@ -84,8 +110,14 @@ public interface CacheConfiguration {
 
                 @Override
                 @Nonnull
-                public StoreConfiguration storeConfiguration() {
-                    return storeConfiguration;
+                public MemoryStoreConfiguration memoryStoreConfiguration() {
+                    return memoryStoreConfiguration;
+                }
+
+                @Nonnull
+                @Override
+                public Optional<PersistentStoreConfiguration> persistentStoreConfiguration() {
+                    return persistentStoreConfig;
                 }
 
                 @Override
@@ -107,6 +139,17 @@ public interface CacheConfiguration {
                             .stream()
                             .map(l -> (CacheEntryEventListener<K, V>) l)
                             .collect(Collectors.toList());
+                }
+
+                @Override
+                public String toString() {
+                    return "CacheConfiguration{" +
+                            "cacheName=" + cacheName() +
+                            ", evictionPolicy=" + evictionPolicy() +
+                            ", memoryStoreConfiguration=" + memoryStoreConfiguration() +
+                            ", persistentStoreConfiguration=" + persistentStoreConfiguration() +
+                            ", expirationConfiguration=" + expirationConfiguration +
+                            '}';
                 }
             };
         }

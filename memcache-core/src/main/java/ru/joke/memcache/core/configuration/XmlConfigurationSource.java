@@ -40,13 +40,15 @@ public final class XmlConfigurationSource implements ConfigurationSource {
     private static final String ASYNC_CACHES_OPS_PARALLELISM_ATTR = "async-cache-ops-parallelism";
     private static final String CACHE_NAME_ATTR = "name";
     private static final String CACHE_EVICTION_POLICY_ELEMENT = "eviction-policy";
-    private static final String CACHE_STORE_ELEMENT = "store";
+    private static final String CACHE_MEMORY_STORE_ELEMENT = "memory-store";
     private static final String CACHE_EVENT_LISTENERS_ELEMENT = "event-listeners";
     private static final String CACHE_EVENT_LISTENER_CLS_ELEMENT = "class";
     private static final String CACHE_EXPIRATION_ELEMENT = "expiration";
-    private static final String CACHE_STORE_PERSIST_ON_SHUTDOWN_ATTR = "persist-on-shutdown";
-    private static final String CACHE_STORE_MAX_ELEMENTS_ATTR = "max-elements";
-    private static final String CACHE_STORE_CONCURRENCY_LEVEL_ATTR = "concurrency-level";
+    private static final String CACHE_PERSISTENT_STORE_ELEMENT = "persistent-disk-store";
+    private static final String CACHE_PERSISTENT_STORE_UID_ATTR = "uid";
+    private static final String CACHE_PERSISTENT_STORE_LOCATION_ATTR = "location";
+    private static final String CACHE_MEMORY_STORE_MAX_ELEMENTS_ATTR = "max-entries";
+    private static final String CACHE_MEMORY_STORE_CONCURRENCY_LEVEL_ATTR = "concurrency-level";
     private static final String CACHE_EXPIRATION_LIFESPAN_ATTR = "lifespan";
     private static final String CACHE_EXPIRATION_IDLE_TTL_ATTR = "idle-ttl";
     private static final String CACHE_EXPIRATION_ETERNAL_ATTR = "eternal";
@@ -168,9 +170,10 @@ public final class XmlConfigurationSource implements ConfigurationSource {
             final String cacheName = cacheElement.getAttribute(CACHE_NAME_ATTR);
 
             final List<CacheEntryEventListener<?, ?>> eventListeners = parseEventListeners(cacheElement);
-            final EvictionPolicy evictionPolicy = parseEvictionPolicy(cacheElement);
+            final CacheConfiguration.EvictionPolicy evictionPolicy = parseEvictionPolicy(cacheElement);
             final ExpirationConfiguration expirationConfiguration = createExpirationConfiguration(cacheElement);
-            final StoreConfiguration storeConfiguration = createStoreConfiguration(cacheElement);
+            final MemoryStoreConfiguration memoryStoreConfiguration = createMemoryStoreConfiguration(cacheElement);
+            final PersistentStoreConfiguration persistentStoreConfiguration = createPersistentStoreConfiguration(cacheElement);
 
             final CacheConfiguration cacheConfiguration =
                     CacheConfiguration.
@@ -178,7 +181,8 @@ public final class XmlConfigurationSource implements ConfigurationSource {
                                 .setCacheName(cacheName)
                                 .setEvictionPolicy(evictionPolicy)
                                 .setExpirationConfiguration(expirationConfiguration)
-                                .setStoreConfiguration(storeConfiguration)
+                                .setMemoryStoreConfiguration(memoryStoreConfiguration)
+                                .setPersistentStoreConfiguration(persistentStoreConfiguration)
                                 .setCacheEntryEventListeners(eventListeners)
                             .build();
             result.add(cacheConfiguration);
@@ -189,20 +193,38 @@ public final class XmlConfigurationSource implements ConfigurationSource {
         return composeConfiguration(Set.copyOf(result), cleaningPoolSize, asyncCacheOpsParallelism);
     }
 
-    private StoreConfiguration createStoreConfiguration(final Element cacheElement) {
+    private MemoryStoreConfiguration createMemoryStoreConfiguration(final Element cacheElement) {
 
-        final NodeList storeConfigNode = cacheElement.getElementsByTagName(CACHE_STORE_ELEMENT);
+        final NodeList storeConfigNode = cacheElement.getElementsByTagName(CACHE_MEMORY_STORE_ELEMENT);
         final Element storeConfigElement = (Element) storeConfigNode.item(0);
 
-        final boolean persistOnShutdown = Boolean.parseBoolean(storeConfigElement.getAttribute(CACHE_STORE_PERSIST_ON_SHUTDOWN_ATTR));
-        final String maxElementsStr = storeConfigElement.getAttribute(CACHE_STORE_MAX_ELEMENTS_ATTR);
-        final String concurrencyLevelStr = storeConfigElement.getAttribute(CACHE_STORE_CONCURRENCY_LEVEL_ATTR);
+        final String maxEntriesStr = storeConfigElement.getAttribute(CACHE_MEMORY_STORE_MAX_ELEMENTS_ATTR);
+        final String concurrencyLevelStr = storeConfigElement.getAttribute(CACHE_MEMORY_STORE_CONCURRENCY_LEVEL_ATTR);
 
-        return new ImmutableStoreConfiguration(
-                Integer.parseInt(concurrencyLevelStr),
-                Long.parseLong(maxElementsStr),
-                persistOnShutdown
-        );
+        return MemoryStoreConfiguration
+                    .builder()
+                        .setMaxEntries(Integer.parseInt(maxEntriesStr))
+                        .setConcurrencyLevel(Integer.parseInt(concurrencyLevelStr))
+                    .build();
+    }
+
+    private PersistentStoreConfiguration createPersistentStoreConfiguration(final Element cacheElement) {
+
+        final NodeList storeConfigNode = cacheElement.getElementsByTagName(CACHE_PERSISTENT_STORE_ELEMENT);
+        if (storeConfigNode.getLength() == 0) {
+            return null;
+        }
+
+        final Element storeConfigElement = (Element) storeConfigNode.item(0);
+
+        final String location = storeConfigElement.getAttribute(CACHE_PERSISTENT_STORE_LOCATION_ATTR);
+        final String uid = storeConfigElement.getAttribute(CACHE_PERSISTENT_STORE_UID_ATTR);
+
+        return PersistentStoreConfiguration
+                    .builder()
+                        .setLocation(location.isBlank() ? null : location)
+                        .setUid(uid)
+                    .build();
     }
 
     private ExpirationConfiguration createExpirationConfiguration(final Element cacheElement) {
@@ -215,17 +237,19 @@ public final class XmlConfigurationSource implements ConfigurationSource {
         final String idleTtlStr = expirationConfigElement.getAttribute(CACHE_EXPIRATION_IDLE_TTL_ATTR);
 
         final boolean eternal = Boolean.parseBoolean(eternalStr);
-        return new ImmutableExpirationConfiguration(
-                eternal ? -1 : Long.parseLong(idleTtlStr),
-                eternal ? -1 : Long.parseLong(lifespanStr)
-        );
+        return ExpirationConfiguration
+                    .builder()
+                        .setEternal(eternal)
+                        .setIdleTimeout(eternal || idleTtlStr.isBlank() ? -1 : Long.parseLong(idleTtlStr))
+                        .setLifespan(eternal || lifespanStr.isBlank() ? -1 : Long.parseLong(lifespanStr))
+                    .build();
     }
 
-    private EvictionPolicy parseEvictionPolicy(final Element cacheElement) {
+    private CacheConfiguration.EvictionPolicy parseEvictionPolicy(final Element cacheElement) {
 
         final NodeList policyNode = cacheElement.getElementsByTagName(CACHE_EVICTION_POLICY_ELEMENT);
         final Element policyElement = (Element) policyNode.item(0);
-        return EvictionPolicy.valueOf(policyElement.getTextContent());
+        return CacheConfiguration.EvictionPolicy.valueOf(policyElement.getTextContent());
     }
 
     private List<CacheEntryEventListener<?, ?>> parseEventListeners(final Element cacheElement) {

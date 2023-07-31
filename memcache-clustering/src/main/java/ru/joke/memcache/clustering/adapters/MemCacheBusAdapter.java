@@ -2,6 +2,7 @@ package ru.joke.memcache.clustering.adapters;
 
 import ru.joke.cache.bus.core.Cache;
 import ru.joke.cache.bus.core.CacheEventListener;
+import ru.joke.memcache.core.MemCache;
 import ru.joke.memcache.core.events.CacheEntryEventListener;
 
 import javax.annotation.Nonnull;
@@ -15,9 +16,9 @@ import java.util.function.Function;
 @ThreadSafe
 public final class MemCacheBusAdapter<K extends Serializable, V extends Serializable> implements Cache<K, V> {
 
-    private final ru.joke.memcache.core.Cache<K, V> memCache;
+    private final MemCache<K, V> memCache;
 
-    public MemCacheBusAdapter(@Nonnull ru.joke.memcache.core.Cache<K, V> memCache) {
+    public MemCacheBusAdapter(@Nonnull MemCache<K, V> memCache) {
         this.memCache = memCache;
     }
 

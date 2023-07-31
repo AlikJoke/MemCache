@@ -12,4 +12,18 @@
     <artifactId>memcache-core</artifactId>
     <name>MemCache Core Module</name>
     <description>Core of MemCache</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>ru.odnoklassniki</groupId>
+            <artifactId>one-nio</artifactId>
+            <version>1.6.1</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>log4j</groupId>
+                    <artifactId>log4j</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+    </dependencies>
 </project>

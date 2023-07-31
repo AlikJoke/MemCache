@@ -1,6 +1,6 @@
 package ru.joke.memcache.core.events;
 
-import ru.joke.memcache.core.Cache;
+import ru.joke.memcache.core.MemCache;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -13,7 +13,7 @@ public record DefaultCacheEntryEvent<K extends Serializable, V extends Serializa
         @Nonnull Optional<V> oldValue,
         @Nonnull Optional<V> newValue,
         @Nonnull EventType eventType,
-        @Nonnull Cache<K, V> source
+        @Nonnull MemCache<K, V> source
 ) implements CacheEntryEvent<K, V> {
 
     public DefaultCacheEntryEvent  {
@@ -27,7 +27,7 @@ public record DefaultCacheEntryEvent<K extends Serializable, V extends Serializa
             @Nullable V oldValue,
             @Nullable V newValue,
             @Nonnull EventType eventType,
-            @Nonnull Cache<K, V> source) {
+            @Nonnull MemCache<K, V> source) {
         this(key, Optional.ofNullable(newValue), Optional.ofNullable(oldValue), eventType, source);
     }
 }

@@ -5,7 +5,7 @@ import ru.joke.cache.bus.core.configuration.CacheProviderConfiguration;
 import ru.joke.cache.bus.core.impl.configuration.CacheProviderConfigurationTemplate;
 import ru.joke.memcache.clustering.adapters.MemCacheManagerBusAdapter;
 import ru.joke.memcache.clustering.listeners.MemCacheCacheEventListenerRegistrar;
-import ru.joke.memcache.core.CacheManager;
+import ru.joke.memcache.core.MemCacheManager;
 
 import javax.annotation.Nonnull;
 
@@ -18,7 +18,7 @@ import javax.annotation.Nonnull;
  */
 public final class MemCacheProviderBusConfiguration extends CacheProviderConfigurationTemplate {
 
-    public MemCacheProviderBusConfiguration(@Nonnull CacheManager cacheManager) {
+    public MemCacheProviderBusConfiguration(@Nonnull MemCacheManager cacheManager) {
         super(
                 new MemCacheManagerBusAdapter(cacheManager),
                 new MemCacheCacheEventListenerRegistrar()
@@ -26,7 +26,7 @@ public final class MemCacheProviderBusConfiguration extends CacheProviderConfigu
     }
 
     @Nonnull
-    public static CacheProviderConfiguration create(@Nonnull CacheManager cacheManager) {
+    public static CacheProviderConfiguration create(@Nonnull MemCacheManager cacheManager) {
         return new MemCacheProviderBusConfiguration(cacheManager);
     }
 }

@@ -9,7 +9,7 @@ import java.io.Serializable;
 import java.util.Optional;
 import java.util.Set;
 
-public interface CacheManager {
+public interface MemCacheManager {
 
     void initialize();
 
@@ -19,7 +19,7 @@ public interface CacheManager {
 
     @Nonnull
     @CheckReturnValue
-    <K extends Serializable, V extends Serializable> Optional<Cache<K, V>> getCache(@Nonnull String cacheName);
+    <K extends Serializable, V extends Serializable> Optional<MemCache<K, V>> getCache(@Nonnull String cacheName);
 
     @Nonnull
     Set<String> getCacheNames();

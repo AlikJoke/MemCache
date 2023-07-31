@@ -1,6 +1,6 @@
 package ru.joke.memcache.core.events;
 
-import ru.joke.memcache.core.Cache;
+import ru.joke.memcache.core.MemCache;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -11,5 +11,5 @@ public interface CacheEntriesEvent<K extends Serializable, V extends Serializabl
     EventType eventType();
 
     @Nonnull
-    Cache<K, V> source();
+    MemCache<K, V> source();
 }

@@ -1,4 +1,4 @@
-package ru.joke.memcache.core;
+package ru.joke.memcache.core.internal;
 
 import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
@@ -17,12 +17,12 @@ final class AsyncOpsInvoker implements Closeable {
     }
 
     @Nonnull
-    public <U> CompletableFuture<U> invoke(@Nonnull Supplier<U> operation) {
+    <U> CompletableFuture<U> invoke(@Nonnull Supplier<U> operation) {
         return CompletableFuture.supplyAsync(operation, this.asyncOpsPool);
     }
 
     @Nonnull
-    public CompletableFuture<Void> invoke(@Nonnull Runnable operation) {
+    CompletableFuture<Void> invoke(@Nonnull Runnable operation) {
         return CompletableFuture.runAsync(operation, this.asyncOpsPool);
     }
 

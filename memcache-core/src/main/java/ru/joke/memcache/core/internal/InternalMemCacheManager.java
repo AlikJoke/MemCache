@@ -1,24 +1,25 @@
-package ru.joke.memcache.core;
+package ru.joke.memcache.core.internal;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import ru.joke.memcache.core.MemCache;
+import ru.joke.memcache.core.MemCacheManager;
 import ru.joke.memcache.core.configuration.CacheConfiguration;
 import ru.joke.memcache.core.configuration.Configuration;
 import ru.joke.memcache.core.configuration.ConfigurationSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
-import java.io.Closeable;
 import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.*;
 
 @ThreadSafe
-public final class DefaultCacheManager implements CacheManager, Closeable {
+public final class InternalMemCacheManager implements MemCacheManager {
 
-    private static final Logger logger = LoggerFactory.getLogger(DefaultCacheManager.class);
+    private static final Logger logger = LoggerFactory.getLogger(InternalMemCacheManager.class);
 
-    private final Map<String, MemCache<?, ?>> caches = new ConcurrentHashMap<>();
+    private final Map<String, MapMemCache<?, ?>> caches = new ConcurrentHashMap<>();
     private ScheduledExecutorService cleaningThreadPool;
     private AsyncOpsInvoker asyncOpsInvoker;
     private List<Future<?>> scheduledCleaningTasks;
@@ -52,9 +53,9 @@ public final class DefaultCacheManager implements CacheManager, Closeable {
 
     @Nonnull
     @Override
-    public <K extends Serializable, V extends Serializable> Optional<Cache<K, V>> getCache(@Nonnull String cacheName) {
+    public <K extends Serializable, V extends Serializable> Optional<MemCache<K, V>> getCache(@Nonnull String cacheName) {
         @SuppressWarnings("unchecked")
-        final Cache<K, V> cache = (Cache<K, V>) this.caches.get(cacheName);
+        final MemCache<K, V> cache = (MemCache<K, V>) this.caches.get(cacheName);
         return Optional.ofNullable(cache);
     }
 
@@ -65,21 +66,28 @@ public final class DefaultCacheManager implements CacheManager, Closeable {
     }
 
     @Override
-    public void close() {
-        shutdown();
-    }
-
-    @Override
     public synchronized void shutdown() {
         this.cleaningThreadPool.shutdown();
         this.asyncOpsInvoker.close();
 
-        this.caches.values().forEach(MemCache::shutdown);
+        this.caches.values().forEach(MapMemCache::shutdown);
     }
 
     private boolean createCache(final CacheConfiguration configuration, final boolean rescheduleCleaningTasks) {
 
-        final MemCache<?, ?> cache = new MemCache<>(configuration, this.asyncOpsInvoker);
+        final EntryMetadataFactory metadataFactory = new EntryMetadataFactory(configuration);
+        final PersistentCacheRepository persistentCacheRepository =
+                configuration.persistentStoreConfiguration()
+                                .map(psc -> new DiskPersistentCacheRepository(configuration, metadataFactory))
+                                .map(PersistentCacheRepository.class::cast)
+                                .orElseGet(PersistentCacheRepository.NoPersistentCacheRepository::new);
+
+        final MapMemCache<?, ?> cache = new MapMemCache<>(
+                configuration,
+                this.asyncOpsInvoker,
+                persistentCacheRepository,
+                metadataFactory
+        );
         final boolean newCacheAdded = this.caches.putIfAbsent(cache.getName(), cache) == null;
         if (newCacheAdded) {
             cache.initialize();
@@ -97,20 +105,20 @@ public final class DefaultCacheManager implements CacheManager, Closeable {
 
         final List<Future<?>> cleaningTasks = new ArrayList<>(this.cleaningPoolSize);
 
-        final List<MemCache<?, ?>> cleanableCaches =
+        final List<MapMemCache<?, ?>> cleanableCaches =
                 this.caches
                         .values()
                         .stream()
-                        .filter(MemCache::eternal)
+                        .filter(MapMemCache::eternal)
                         .toList();
 
         final int partsCount = cleanableCaches.size() / this.cleaningPoolSize;
-        final List<MemCache<?, ?>> cachesPart = new ArrayList<>();
+        final List<MapMemCache<?, ?>> cachesPart = new ArrayList<>();
         for (int i = 1; i <= cleanableCaches.size(); i++) {
-            final MemCache<?, ?> cache = cleanableCaches.get(i - 1);
+            final MapMemCache<?, ?> cache = cleanableCaches.get(i - 1);
             if (i % partsCount == 0 || i == cleanableCaches.size()) {
 
-                final List<MemCache<?, ?>> cachesToProcessing = new ArrayList<>(cachesPart);
+                final List<MapMemCache<?, ?>> cachesToProcessing = new ArrayList<>(cachesPart);
                 cachesPart.clear();
 
                 final long minExpirationTimeout =
@@ -118,7 +126,7 @@ public final class DefaultCacheManager implements CacheManager, Closeable {
                                 .stream()
                                 .map(MemCache::getConfiguration)
                                 .map(CacheConfiguration::expirationConfiguration)
-                                .mapToLong(expirationConfig -> Math.min(expirationConfig.idleExpirationTimeout(), expirationConfig.lifespan()))
+                                .mapToLong(expirationConfig -> Math.min(expirationConfig.idleTimeout(), expirationConfig.lifespan()))
                                 .min()
                                 .orElse(-1);
 
@@ -128,7 +136,7 @@ public final class DefaultCacheManager implements CacheManager, Closeable {
 
                 final ScheduledFuture<?> taskFuture =
                         this.cleaningThreadPool.scheduleAtFixedRate(
-                                () -> cachesToProcessing.forEach(MemCache::clearExpired),
+                                () -> cachesToProcessing.forEach(MapMemCache::clearExpired),
                                 startImmediately ? 0 : minExpirationTimeout,
                                 minExpirationTimeout,
                                 TimeUnit.MILLISECONDS

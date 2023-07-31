@@ -3,6 +3,8 @@ package ru.joke.memcache.clustering.adapters;
 import ru.joke.cache.bus.core.Cache;
 import ru.joke.cache.bus.core.CacheManager;
 import ru.joke.cache.bus.core.state.ComponentState;
+import ru.joke.memcache.core.MemCache;
+import ru.joke.memcache.core.MemCacheManager;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
@@ -17,10 +19,10 @@ public class MemCacheManagerBusAdapter implements CacheManager {
 
     private static final String CACHE_MANAGER_ID = "memcache-manager";
 
-    private final ru.joke.memcache.core.CacheManager memCacheManager;
+    private final MemCacheManager memCacheManager;
     private final Map<String, Optional<Cache<Serializable, Serializable>>> cachesMap;
 
-    public MemCacheManagerBusAdapter(@Nonnull ru.joke.memcache.core.CacheManager memCacheManager) {
+    public MemCacheManagerBusAdapter(@Nonnull MemCacheManager memCacheManager) {
         this.memCacheManager = Objects.requireNonNull(memCacheManager, "memCacheManager");
         this.cachesMap = new ConcurrentHashMap<>();
     }
@@ -46,7 +48,7 @@ public class MemCacheManagerBusAdapter implements CacheManager {
     }
 
     private <K extends Serializable, V extends Serializable> Optional<Cache<K, V>> composeCacheAdapter(@Nonnull String cacheName) {
-        final Optional<ru.joke.memcache.core.Cache<K, V>> memCache = this.memCacheManager.getCache(cacheName);
+        final Optional<MemCache<K, V>> memCache = this.memCacheManager.getCache(cacheName);
         return memCache.map(MemCacheBusAdapter::new);
     }
 

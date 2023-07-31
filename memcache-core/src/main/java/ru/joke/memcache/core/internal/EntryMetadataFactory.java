@@ -1,18 +1,20 @@
-package ru.joke.memcache.core;
+package ru.joke.memcache.core.internal;
 
 import ru.joke.memcache.core.configuration.CacheConfiguration;
-import ru.joke.memcache.core.configuration.EvictionPolicy;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
+import java.io.IOException;
+import java.io.ObjectInput;
+import java.io.ObjectOutput;
 import java.util.concurrent.atomic.AtomicLong;
 
 @ThreadSafe
 @Immutable
 final class EntryMetadataFactory {
 
-    private final EvictionPolicy policy;
+    private final CacheConfiguration.EvictionPolicy policy;
     private final long expirationTimeout;
 
     EntryMetadataFactory(@Nonnull CacheConfiguration configuration) {
@@ -82,6 +84,18 @@ final class EntryMetadataFactory {
         @Override
         public int compareTo(LFUEntryMetadata<K> o) {
             return Long.compare(this.usageCounter.get(), o.usageCounter.get());
+        }
+
+        @Override
+        protected void storeMetadata(ObjectOutput objectOutput) throws IOException {
+            super.storeMetadata(objectOutput);
+            objectOutput.writeLong(usageCounter.get());
+        }
+
+        @Override
+        protected void restoreMetadata(ObjectInput objectInput) throws IOException {
+            super.restoreMetadata(objectInput);
+            this.usageCounter.set(objectInput.readLong());
         }
     }
 
