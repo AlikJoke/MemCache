@@ -74,7 +74,7 @@ public final class XmlConfigurationSource implements ConfigurationSource {
         final Set<ConfigurationLoader> loaders = collectConfigurationLoaders();
 
         validateConfigurations(loaders);
-        logger.debug("Configurations validated");
+        logger.debug("Configurations has been validated");
 
         final Set<Configuration> configurations = loaders
                                                     .stream()
@@ -345,6 +345,15 @@ public final class XmlConfigurationSource implements ConfigurationSource {
             @Nonnegative
             public int asyncCacheOpsParallelismLevel() {
                 return asyncCacheOpsParallelismLevel;
+            }
+
+            @Override
+            public String toString() {
+                return "Configuration{" +
+                        "cacheConfigurations=" + cacheConfigurations() +
+                        ", cleaningPoolSize=" + cleaningPoolSize() +
+                        ", asyncCacheOpsParallelismLevel=" + asyncCacheOpsParallelismLevel() +
+                        '}';
             }
         };
     }

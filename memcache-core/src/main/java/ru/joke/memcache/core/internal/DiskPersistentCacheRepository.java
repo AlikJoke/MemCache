@@ -39,7 +39,7 @@ final class DiskPersistentCacheRepository implements PersistentCacheRepository {
             @Nonnull CacheConfiguration cacheConfiguration,
             @Nonnull EntryMetadataFactory metadataFactory) {
         this.metadataFactory = metadataFactory;
-        this.persistentConfiguration = cacheConfiguration.persistentStoreConfiguration().orElseThrow();
+        this.persistentConfiguration = cacheConfiguration.persistentStoreConfiguration().orElseThrow(() -> new MemCacheException("Store configuration must be provided"));
         this.dataStore =
                 this.persistentConfiguration.location() == null
                     ? createDataFile(cacheConfiguration.cacheName())
@@ -49,6 +49,8 @@ final class DiskPersistentCacheRepository implements PersistentCacheRepository {
     @Override
     public synchronized  <K extends Serializable, V extends Serializable> void save(@Nonnull Collection<MemCacheEntry<K, V>> entries) {
 
+        logger.info("Persistence of entries to disk was called: {}", entries.size());
+
         try (final FileChannel fileChannel = openDataStoreFileWriteChannel();
              final ObjectOutput out = new ObjectOutputChannel(fileChannel)) {
             writeTo(out, entries);
@@ -56,13 +58,18 @@ final class DiskPersistentCacheRepository implements PersistentCacheRepository {
             logger.error("Unable to serialize entries", ex);
             throw new MemCacheException(ex);
         }
+
+        logger.info("Persistence of entries to disk was completed");
     }
 
     @Override
     @Nonnull
     public synchronized <K extends Serializable, V extends Serializable> Collection<MemCacheEntry<K, V>> load() {
 
+        logger.info("Restore of data from disk was called");
+
         if (!this.dataStore.exists()) {
+            logger.info("No data was stored before");
             return Collections.emptySet();
         }
 
@@ -70,10 +77,12 @@ final class DiskPersistentCacheRepository implements PersistentCacheRepository {
              final ObjectInput in = new ObjectInputChannel(fileChannel)) {
 
             if (in.available() < 0) {
+                logger.info("Empty data was stored before");
                 return Collections.emptySet();
             }
 
             final int capacity = in.readInt();
+            logger.debug("{} entries will be restored", capacity);
             final Set<MemCacheEntry<K, V>> entries = new HashSet<>(capacity, 1);
 
             while (in.available() > 0) {
@@ -89,6 +98,8 @@ final class DiskPersistentCacheRepository implements PersistentCacheRepository {
 
                 entries.add(new MemCacheEntry<>(value, metadata));
             }
+
+            logger.info("{} entries was restored", entries.size());
 
             return entries;
         } catch (IOException | ClassNotFoundException ex) {

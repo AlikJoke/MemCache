@@ -1,5 +1,7 @@
 package ru.joke.memcache.core.internal;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.joke.memcache.core.LifecycleException;
 import ru.joke.memcache.core.MemCache;
 import ru.joke.memcache.core.MemCacheException;
@@ -22,6 +24,8 @@ import java.util.function.Function;
 
 @ThreadSafe
 final class MapMemCache<K extends Serializable, V extends Serializable> implements MemCache<K, V> {
+
+    private static final Logger logger = LoggerFactory.getLogger(MapMemCache.class);
 
     private final CacheConfiguration configuration;
     private final AsyncOpsInvoker asyncOpsInvoker;
@@ -103,6 +107,7 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
             throw new LifecycleException("Event listener registration available only in " + ComponentStatus.RUNNING + " or " + ComponentStatus.INITIALIZING + " state. Current state is " + this.status);
         }
 
+        logger.debug("Event listener registration was called {} for cache {}", listener, this);
         return this.listeners.add(listener);
     }
 
@@ -112,6 +117,7 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
             throw new LifecycleException("Event listener deregistration available only in " + ComponentStatus.RUNNING + " or " + ComponentStatus.INITIALIZING + " state. Current state is " + this.status);
         }
 
+        logger.debug("Event listener will be unregistered {} for cache {}", listener, this);
         return this.listeners.removeIf(l -> l.equals(listener));
     }
 
@@ -159,6 +165,8 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
 
     @Override
     public void clear() {
+        logger.debug("Cache cleaning was called: {}", this);
+
         final Map<K, MemCacheEntry<K, V>>[] newSegments = createSegments();
         // not atomic, but not terrible for entriesMetadata; floating entries (i.e. trash) added between next two constructions will be removed eventually
         this.entriesMetadata.clear();
@@ -349,16 +357,21 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
             throw new LifecycleException("Cache initialization available only in " + ComponentStatus.UNAVAILABLE + " state. Current state is " + this.status);
         }
 
+        logger.info("Cache {} initialization was called", this);
+
         this.status = ComponentStatus.INITIALIZING;
 
         try {
             restoreFromRepository();
         } catch (RuntimeException ex) {
             this.status = ComponentStatus.FAILED;
+            logger.error("Unable to restore data from disk for cache " + this, ex);
             throw (ex instanceof MemCacheException ? ex : new MemCacheException(ex));
         }
 
         this.status = ComponentStatus.RUNNING;
+
+        logger.info("Cache {} initialization was completed", this);
     }
 
     @Override
@@ -367,16 +380,30 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
             throw new LifecycleException("Cache shutdown available only in " + ComponentStatus.RUNNING + " state. Current state is " + this.status);
         }
 
+        logger.info("Cache {} shutdown was called", this);
+
         this.status = ComponentStatus.STOPPING;
 
         try {
             persistToRepository();
         } catch (RuntimeException ex) {
             this.status = ComponentStatus.FAILED;
+            logger.error("Unable to persist data to disk for cache " + this, ex);
             throw (ex instanceof MemCacheException ? ex : new MemCacheException(ex));
         }
 
         this.status = ComponentStatus.TERMINATED;
+
+        logger.info("Cache {} shutdown was completed", this);
+    }
+
+    @Override
+    public String toString() {
+        return "MapMemCache{" +
+                "name=" + name() +
+                ", eternal=" + eternal +
+                ", status=" + status +
+                '}';
     }
 
     boolean eternal() {
@@ -384,6 +411,8 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
     }
 
     void clearExpired() {
+        logger.trace("Expired entries cleaning was called: {}", this);
+
         final long idleExpirationTimeout = this.configuration.expirationConfiguration().idleTimeout();
         final long idleExpirationTime = System.currentTimeMillis() - idleExpirationTimeout;
         this.entriesMetadata.forEach(metadata -> {
@@ -395,9 +424,13 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
                 }, true, true);
             }
         });
+
+        logger.trace("Expired entries cleaning was completed: {}", this);
     }
 
     private void restoreFromRepository() {
+        logger.debug("Restore from disk was called: {}", this);
+
         final Collection<MemCacheEntry<K, V>> restoredEntries = this.persistentCacheRepository.load();
 
         restoredEntries.forEach(entry -> {
@@ -405,13 +438,19 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
             this.computeSegment(key).put(key, entry);
             this.entriesMetadata.add(entry.metadata());
         });
+
+        logger.debug("Restore from disk was completed (entries {}): {}", restoredEntries.size(), this);
     }
 
     private void persistToRepository() {
+        logger.debug("Persist to disk was called: {}", this);
+
         final CompositeCollection<MemCacheEntry<K, V>> compositeCollection = new CompositeCollection<>(this.segments.length);
         for (final Map<K, MemCacheEntry<K, V>> segment : this.segments) {
             compositeCollection.addCollection(segment.values());
         }
+
+        logger.debug("Persist to disk will be executed for cache {} and {} entries", this, compositeCollection.size());
 
         this.persistentCacheRepository.save(compositeCollection);
     }

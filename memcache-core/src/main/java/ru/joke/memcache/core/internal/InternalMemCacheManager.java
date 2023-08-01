@@ -50,7 +50,9 @@ public final class InternalMemCacheManager implements MemCacheManager {
         if (this.status != ComponentStatus.UNAVAILABLE) {
             throw new LifecycleException("Status must be " + ComponentStatus.UNAVAILABLE + ". Current state is " + this.status);
         }
-        
+
+        logger.info("Initialization of cache manager was called");
+
         this.status = ComponentStatus.INITIALIZING;
 
         try {
@@ -59,13 +61,19 @@ public final class InternalMemCacheManager implements MemCacheManager {
                         ? this.configuration
                         : this.configurationSource.pull();
 
+            logger.debug("Configuration for initialization {}", configuration);
+
             this.asyncOpsInvoker = new AsyncOpsInvoker(configuration.asyncCacheOpsParallelismLevel());
             this.cleaningPoolSize = configuration.cleaningPoolSize();
             this.cleaningThreadPool = Executors.newScheduledThreadPool(this.cleaningPoolSize, new CleaningThreadFactory());
 
+            logger.debug("Initialization of caches will be called");
             configuration.cacheConfigurations().forEach(cacheConfiguration -> createCache(cacheConfiguration, false));
 
+            logger.debug("Initialization of caches was completed");
+
             this.scheduledCleaningTasks = scheduleCleaningTasks(false);
+            logger.debug("Cleaning threads was scheduled");
         } catch (RuntimeException ex) {
             this.status = ComponentStatus.FAILED;
             logger.error("Unable to initialize cache manager", ex);
@@ -73,6 +81,7 @@ public final class InternalMemCacheManager implements MemCacheManager {
         }
 
         this.status = ComponentStatus.RUNNING;
+        logger.info("Initialization of cache managed was completed");
     }
 
     @Override
@@ -119,13 +128,18 @@ public final class InternalMemCacheManager implements MemCacheManager {
             throw new LifecycleException("Shutdown available only in " + ComponentStatus.RUNNING + " state. Current state is " + this.status);
         }
 
+        logger.info("Shutdown of cache manager was called");
+
         this.status = ComponentStatus.STOPPING;
 
         try {
             this.cleaningThreadPool.shutdown();
+            logger.debug("Cleaning thread pool has been shutdown");
             this.asyncOpsInvoker.close();
+            logger.debug("Async cache ops pool has been shutdown");
 
             this.caches.values().forEach(MapMemCache::shutdown);
+            logger.debug("Caches has been shutdown");
         } catch (RuntimeException ex) {
             this.status = ComponentStatus.FAILED;
             logger.error("Unable to initialize cache manager", ex);
@@ -133,6 +147,8 @@ public final class InternalMemCacheManager implements MemCacheManager {
         }
 
         this.status = ComponentStatus.TERMINATED;
+
+        logger.info("Shutdown of cache manager was completed");
     }
 
     private boolean createCache(final CacheConfiguration configuration, final boolean rescheduleCleaningTasks) {

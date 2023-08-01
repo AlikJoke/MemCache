@@ -70,6 +70,15 @@ public interface ConfigurationSource {
                 public int asyncCacheOpsParallelismLevel() {
                     return asyncCacheOpsParallelismLevel;
                 }
+
+                @Override
+                public String toString() {
+                    return "Configuration{" +
+                            "cacheConfigurations=" + cacheConfigurations() +
+                            ", cleaningPoolSize=" + cleaningPoolSize() +
+                            ", asyncCacheOpsParallelismLevel=" + asyncCacheOpsParallelismLevel() +
+                            '}';
+                }
             };
         }
 

@@ -27,6 +27,7 @@ public interface CacheConfiguration {
     @Nonnull
     ExpirationConfiguration expirationConfiguration();
 
+    @Nonnull
     <K extends Serializable, V extends Serializable> List<CacheEntryEventListener<K, V>> registeredEventListeners();
 
     enum EvictionPolicy {
@@ -133,6 +134,7 @@ public interface CacheConfiguration {
                 }
 
                 @Override
+                @Nonnull
                 @SuppressWarnings("unchecked")
                 public <K extends Serializable, V extends Serializable> List<CacheEntryEventListener<K, V>> registeredEventListeners() {
                     return listeners
