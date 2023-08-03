@@ -9,6 +9,7 @@ import ru.joke.memcache.core.configuration.CacheConfiguration;
 import ru.joke.memcache.core.configuration.MemoryStoreConfiguration;
 import ru.joke.memcache.core.events.*;
 import ru.joke.memcache.core.internal.util.CompositeCollection;
+import ru.joke.memcache.core.stats.MemCacheStatistics;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -35,6 +36,7 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
     private final ThreadLocal<MemCacheEntry<K, V>> oldEntryContainer;
     private final boolean eternal;
     private final PersistentCacheRepository persistentCacheRepository;
+    private final InternalMemCacheStatistics statistics;
 
     private volatile ComponentStatus status;
     private volatile Map<K, MemCacheEntry<K, V>>[] segments;
@@ -52,6 +54,15 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
         this.segments = createSegments();
         this.listeners = new CopyOnWriteArrayList<>(configuration.registeredEventListeners());
         this.entryMetadataFactory = metadataFactory;
+        this.statistics = new InternalMemCacheStatistics(() -> {
+            final var segments = this.segments;
+            int count = 0;
+            for (var segment : segments) {
+                count += segment.size();
+            }
+
+            return count;
+        });
 
         final long maxEntries = configuration.memoryStoreConfiguration().maxEntries();
         this.entriesMetadata = new ConcurrentSkipListSet<>() {
@@ -76,7 +87,14 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
 
                             final EntryMetadata<?, K> removedEntry = first();
                             if (removedEntry != null) {
-                                MapMemCache.this.remove(removedEntry.key());
+                                MapMemCache.this.computeIfPresent(
+                                        removedEntry.key(),
+                                        (k, v) -> {
+                                            MapMemCache.this.statistics.onEviction();
+                                            return null;
+                                        },
+                                        true
+                                );
                             }
                         }
 
@@ -123,6 +141,12 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
 
     @Nonnull
     @Override
+    public MemCacheStatistics statistics() {
+        return this.statistics;
+    }
+
+    @Nonnull
+    @Override
     public ComponentStatus status() {
         return this.status;
     }
@@ -133,10 +157,12 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
         final Map<K, MemCacheEntry<K, V>> segment = computeSegment(key);
         final MemCacheEntry<K, V> entry = segment.get(key);
         if (entry == null) {
+            this.statistics.onReadOnlyRetrievalMiss();
             return Optional.empty();
         }
 
         entry.metadata().onUsage();
+        this.statistics.onReadOnlyRetrievalHit();
 
         return Optional.of(entry.value());
     }
@@ -144,23 +170,59 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
     @Nonnull
     @Override
     public Optional<V> remove(@Nonnull K key) {
-        return computeIfPresent(key, (k, v) -> null, true);
+        final var result = computeIfPresent(key, (k, v) -> null, true);
+        result.ifPresentOrElse(v -> this.statistics.onRemovalHit(), this.statistics::onRemovalMiss);
+
+        return result;
     }
 
     @Override
     public boolean remove(@Nonnull K key, @Nonnull V value) {
-        return replace(key, value, null);
+        final boolean result = replace(key, value, null);
+        if (result) {
+            this.statistics.onRemovalHit();
+        } else {
+            this.statistics.onRemovalMiss();
+        }
+
+        return result;
     }
 
     @Nonnull
     @Override
     public Optional<V> put(@Nonnull final K key, @Nullable final V value) {
-        return compute(key, (k, v) -> value, true, false);
+        final var oldValue = compute(key, (k, v) -> value, true, false);
+        oldValue.ifPresentOrElse(
+                v -> {
+                    if (value == null) {
+                        this.statistics.onRemovalHit();
+                    } else {
+                        this.statistics.onPutHit();
+                    }
+                },
+                () -> {
+                    if (value != null) {
+                        this.statistics.onPutHit();
+                    }
+                }
+        );
+
+        return oldValue;
     }
 
     @Override
     public Optional<V> putIfAbsent(@Nonnull K key, @Nullable V value) {
-        return compute(key, (k, v) -> v == null ? value : v, true, false);
+        final var oldValue = compute(key, (k, v) -> v == null ? value : v, true, false);
+        oldValue.ifPresentOrElse(
+                v -> this.statistics.onPutMiss(),
+                () -> {
+                    if (value != null) {
+                        this.statistics.onPutHit();
+                    }
+                }
+        );
+
+        return oldValue;
     }
 
     @Override
@@ -178,7 +240,21 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
 
     @Override
     public Optional<V> merge(@Nonnull K key, @Nonnull V value, @Nonnull BiFunction<? super V, ? super V, ? extends V> mergeFunction) {
-        return this.compute(key, (k, oldV) -> oldV == null ? value : mergeFunction.apply(oldV, value));
+        return this.compute(key, (k, oldV) -> {
+            if (oldV == null) {
+                this.statistics.onPutHit();
+                return value;
+            } else {
+                final V newVal = mergeFunction.apply(oldV, value);
+                if (newVal == null) {
+                    this.statistics.onRemovalHit();
+                } else if (!oldV.equals(newVal)) {
+                    this.statistics.onPutHit();
+                }
+
+                return newVal;
+            }
+        });
     }
 
     @Nonnull
@@ -186,7 +262,7 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
     public Optional<V> computeIfAbsent(@Nonnull K key, @Nonnull Function<? super K, ? extends V> valueFunction) {
 
         final Map<K, MemCacheEntry<K, V>> segment = computeSegment(key);
-        final MemCacheEntry<K, V> newEntry = segment.computeIfAbsent(
+        final MemCacheEntry<K, V> resultEntry = segment.computeIfAbsent(
                 key,
                 k -> {
                     final V value = valueFunction.apply(k);
@@ -205,13 +281,21 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
                 }
         );
 
-        if (newEntry == null || this.oldEntryContainer.get() == null) {
+        final boolean valueComputed = this.oldEntryContainer.get() != null;
+        this.oldEntryContainer.remove();
+
+        if (resultEntry == null) {
             return Optional.empty();
         }
 
-        this.oldEntryContainer.remove();
+        if (!valueComputed) {
+            this.statistics.onReadOnlyRetrievalHit();
+            return Optional.of(resultEntry.value());
+        }
 
-        final Optional<V> newValue = Optional.of(newEntry.value());
+        this.statistics.onPutHit();
+
+        final Optional<V> newValue = Optional.of(resultEntry.value());
         final EventType eventType = EventType.ADDED;
         final var event = new DefaultCacheEntryEvent<>(key, Optional.empty(), newValue, eventType, this);
         this.listeners.forEach(l -> l.onEvent(event));
@@ -222,13 +306,31 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
     @Nonnull
     @Override
     public Optional<V> compute(@Nonnull K key, @Nonnull BiFunction<? super K, ? super V, ? extends V> remappingFunction) {
-        return compute(key, remappingFunction, false, false);
+        return compute(key, (k, v) -> {
+            final var newVal = remappingFunction.apply(k, v);
+            if (newVal == null && v != null) {
+                this.statistics.onRemovalHit();
+            } else if (v == null && newVal != null || v != null && !v.equals(newVal)) {
+                this.statistics.onPutHit();
+            }
+
+            return newVal;
+        }, false, false);
     }
 
     @Nonnull
     @Override
     public Optional<V> computeIfPresent(@Nonnull K key, @Nonnull BiFunction<? super K, ? super V, ? extends V> remappingFunction) {
-        return computeIfPresent(key, remappingFunction, false);
+        return computeIfPresent(key, (k, v) -> {
+            final var newVal = remappingFunction.apply(k, v);
+            if (newVal == null) {
+                this.statistics.onRemovalHit();
+            } else if (!v.equals(newVal)) {
+                this.statistics.onPutHit();
+            }
+
+            return newVal;
+        }, false);
     }
 
     @Override
@@ -241,12 +343,14 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
                     this.oldEntryContainer.set(v);
 
                     if (v == null && oldValue != null || v != null && oldValue != v.value()) {
+                        this.statistics.onPutMiss();
                         return v;
                     }
 
                     if (newValue == null && v == null) {
                         return null;
                     } else if (newValue == null) {
+                        this.statistics.onRemovalHit();
                         this.entriesMetadata.remove(v.metadata());
                         return null;
                     }
@@ -256,6 +360,7 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
                             v == null ? this.entryMetadataFactory.create(k) : v.metadata()
                     );
 
+                    this.statistics.onPutHit();
                     if (v == null) {
                         this.entriesMetadata.add(result.metadata());
                     }
@@ -419,6 +524,7 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
             if (metadata.expiredByLifespanAt() <= System.currentTimeMillis() || metadata.lastAccessed() <= idleExpirationTime) {
                 // eviction of element from cache data
                 compute(metadata.key(), (k, v) -> {
+                    this.statistics.onExpiration();
                     this.entriesMetadata.remove(metadata);
                     return null;
                 }, true, true);
@@ -458,7 +564,7 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
     private Optional<V> computeIfPresent(
             @Nonnull K key,
             @Nonnull BiFunction<? super K, ? super V, ? extends V> remappingFunction,
-            boolean returnOldValue) {
+            boolean forRemoval) {
         final Map<K, MemCacheEntry<K, V>> segment = computeSegment(key);
         final MemCacheEntry<K, V> newEntry = segment.computeIfPresent(
                 key,
@@ -469,6 +575,8 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
                     if (newVal == null) {
                         this.entriesMetadata.remove(v.metadata());
                         return null;
+                    } else if (newVal.equals(v.value())) {
+                        return v;
                     }
 
                     return new MemCacheEntry<>(newVal, v.metadata());
@@ -489,7 +597,7 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
             final var event = new DefaultCacheEntryEvent<>(key, oldValue, newValue, eventType, this);
             this.listeners.forEach(l -> l.onEvent(event));
 
-            return returnOldValue ? oldValue : newValue;
+            return forRemoval ? oldValue : newValue;
         } finally {
             this.oldEntryContainer.remove();
         }
@@ -535,7 +643,7 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
             return Optional.empty();
         } else if (newEntry == oldEntry) {
             this.oldEntryContainer.remove();
-            return Optional.empty();
+            return Optional.of(oldEntry.value());
         }
 
         final Optional<V> oldValue = oldEntry == null ? Optional.empty() : Optional.of(oldEntry.value());

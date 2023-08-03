@@ -2,6 +2,7 @@ package ru.joke.memcache.core;
 
 import ru.joke.memcache.core.configuration.CacheConfiguration;
 import ru.joke.memcache.core.events.CacheEntryEventListener;
+import ru.joke.memcache.core.stats.MemCacheStatistics;
 
 import javax.annotation.CheckReturnValue;
 import javax.annotation.Nonnull;
@@ -190,4 +191,7 @@ public interface MemCache<K extends Serializable, V extends Serializable> extend
     boolean registerEventListener(@Nonnull CacheEntryEventListener<K, V> listener);
 
     boolean deregisterEventListener(@Nonnull CacheEntryEventListener<K, V> listener);
+
+    @Nonnull
+    MemCacheStatistics statistics();
 }
