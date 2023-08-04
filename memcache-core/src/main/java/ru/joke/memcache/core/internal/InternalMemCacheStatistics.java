@@ -2,6 +2,7 @@ package ru.joke.memcache.core.internal;
 
 import ru.joke.memcache.core.stats.MemCacheStatistics;
 
+import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
 import java.math.BigInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -9,7 +10,6 @@ import java.util.function.IntSupplier;
 
 final class InternalMemCacheStatistics implements MemCacheStatistics {
 
-    private final IntSupplier cacheCountSupplier;
     private final AtomicLong hitsCount = new AtomicLong(0);
     private final AtomicLong missesCount = new AtomicLong(0);
     private final AtomicLong readOnlyRetrievalHits = new AtomicLong(0);
@@ -20,6 +20,7 @@ final class InternalMemCacheStatistics implements MemCacheStatistics {
     private final AtomicLong putMisses = new AtomicLong(0);
     private final AtomicLong expirationsCount = new AtomicLong(0);
     private final AtomicLong evictionsCount = new AtomicLong(0);
+    private final IntSupplier cacheCountSupplier;
 
     private volatile boolean enabled;
     private volatile boolean resetInProgress;
@@ -29,6 +30,7 @@ final class InternalMemCacheStatistics implements MemCacheStatistics {
     }
 
     @Override
+    @Nonnull
     public BigInteger approximateHitsCount() {
         if (!this.enabled) {
             return BigInteger.ZERO;
@@ -44,6 +46,7 @@ final class InternalMemCacheStatistics implements MemCacheStatistics {
     }
 
     @Override
+    @Nonnull
     public BigInteger approximateMissesCount() {
         if (!this.enabled) {
             return BigInteger.ZERO;
@@ -59,46 +62,55 @@ final class InternalMemCacheStatistics implements MemCacheStatistics {
     }
 
     @Override
+    @Nonnegative
     public long readOnlyRetrievalHitsCount() {
         return this.readOnlyRetrievalHits.get();
     }
 
     @Override
+    @Nonnegative
     public long readOnlyRetrievalMissesCount() {
         return this.readOnlyRetrievalMisses.get();
     }
 
     @Override
+    @Nonnegative
     public long expirationsCount() {
         return this.expirationsCount.get();
     }
 
     @Override
+    @Nonnegative
     public long evictionsCount() {
         return this.evictionsCount.get();
     }
 
     @Override
+    @Nonnegative
     public long removalMissesCount() {
         return this.removalMisses.get();
     }
 
     @Override
+    @Nonnegative
     public long removalHitsCount() {
         return this.removalHits.get();
     }
 
     @Override
+    @Nonnegative
     public long putHitsCount() {
         return this.putHits.get();
     }
 
     @Override
+    @Nonnegative
     public long putMissesCount() {
         return this.putMisses.get();
     }
 
     @Override
+    @Nonnegative
     public int currentEntriesCount() {
         return this.cacheCountSupplier.getAsInt();
     }
@@ -112,17 +124,19 @@ final class InternalMemCacheStatistics implements MemCacheStatistics {
 
         this.resetInProgress = true;
 
-        this.removalMisses.set(0);
-        this.removalHits.set(0);
-        this.readOnlyRetrievalMisses.set(0);
-        this.readOnlyRetrievalHits.set(0);
-        this.expirationsCount.set(0);
-        this.putHits.set(0);
-        this.putMisses.set(0);
-        this.hitsCount.set(0);
-        this.expirationsCount.set(0);
-
-        this.resetInProgress = false;
+        try {
+            this.removalMisses.set(0);
+            this.removalHits.set(0);
+            this.readOnlyRetrievalMisses.set(0);
+            this.readOnlyRetrievalHits.set(0);
+            this.expirationsCount.set(0);
+            this.putHits.set(0);
+            this.putMisses.set(0);
+            this.hitsCount.set(0);
+            this.expirationsCount.set(0);
+        } finally {
+            this.resetInProgress = false;
+        }
     }
 
     @Override

@@ -4,6 +4,7 @@ import ru.joke.memcache.core.events.CacheEntryEventListener;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,7 +29,7 @@ public interface CacheConfiguration {
     ExpirationConfiguration expirationConfiguration();
 
     @Nonnull
-    <K extends Serializable, V extends Serializable> List<CacheEntryEventListener<K, V>> registeredEventListeners();
+    <K extends Serializable, V extends Serializable> List<CacheEntryEventListener<K, V>> eventListeners();
 
     enum EvictionPolicy {
 
@@ -48,6 +49,7 @@ public interface CacheConfiguration {
         return new Builder();
     }
 
+    @NotThreadSafe
     class Builder {
 
         private String cacheName;
@@ -136,7 +138,7 @@ public interface CacheConfiguration {
                 @Override
                 @Nonnull
                 @SuppressWarnings("unchecked")
-                public <K extends Serializable, V extends Serializable> List<CacheEntryEventListener<K, V>> registeredEventListeners() {
+                public <K extends Serializable, V extends Serializable> List<CacheEntryEventListener<K, V>> eventListeners() {
                     return listeners
                             .stream()
                             .map(l -> (CacheEntryEventListener<K, V>) l)

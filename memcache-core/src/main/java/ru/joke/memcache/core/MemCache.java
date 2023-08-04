@@ -40,6 +40,22 @@ public interface MemCache<K extends Serializable, V extends Serializable> extend
     String name();
 
     /**
+     * Returns cache configuration.
+     *
+     * @return the cache configuration, cannot be {@code null}.
+     * @see CacheConfiguration
+     */
+    @Nonnull
+    CacheConfiguration configuration();
+
+    boolean registerEventListener(@Nonnull CacheEntryEventListener<K, V> listener);
+
+    boolean deregisterEventListener(@Nonnull CacheEntryEventListener<K, V> listener);
+
+    @Nonnull
+    MemCacheStatistics statistics();
+
+    /**
      * Retrieves the value from the cache based on the key, if it exists in the cache.
      *
      * @param key the key of the element in the cache, cannot be {@code null}.
@@ -178,20 +194,4 @@ public interface MemCache<K extends Serializable, V extends Serializable> extend
     @Nonnull
     @CheckReturnValue
     CompletableFuture<Boolean> replaceAsync(@Nonnull K key, @Nullable V oldValue, @Nullable V newValue);
-
-    /**
-     * Returns cache configuration.
-     *
-     * @return the cache configuration, cannot be {@code null}.
-     * @see CacheConfiguration
-     */
-    @Nonnull
-    CacheConfiguration configuration();
-
-    boolean registerEventListener(@Nonnull CacheEntryEventListener<K, V> listener);
-
-    boolean deregisterEventListener(@Nonnull CacheEntryEventListener<K, V> listener);
-
-    @Nonnull
-    MemCacheStatistics statistics();
 }

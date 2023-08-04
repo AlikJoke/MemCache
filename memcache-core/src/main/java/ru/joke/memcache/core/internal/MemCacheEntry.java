@@ -1,4 +1,6 @@
 package ru.joke.memcache.core.internal;
 
-record MemCacheEntry<K, V>(V value, EntryMetadata<?, K> metadata) {
+import javax.annotation.Nonnull;
+
+record MemCacheEntry<K, V>(@Nonnull V value, @Nonnull EntryMetadata<?, K> metadata) {
 }

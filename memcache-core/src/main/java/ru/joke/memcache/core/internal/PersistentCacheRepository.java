@@ -5,14 +5,14 @@ import java.io.Serializable;
 import java.util.Collection;
 import java.util.Collections;
 
-public interface PersistentCacheRepository {
+abstract class PersistentCacheRepository {
 
     @Nonnull
-    <K extends Serializable, V extends Serializable> Collection<MemCacheEntry<K, V>> load();
+    abstract <K extends Serializable, V extends Serializable> Collection<MemCacheEntry<K, V>> load();
 
-    <K extends Serializable, V extends Serializable> void save(@Nonnull Collection<MemCacheEntry<K, V>> entries);
+    abstract <K extends Serializable, V extends Serializable> void save(@Nonnull Collection<MemCacheEntry<K, V>> entries);
 
-    class NoPersistentCacheRepository implements PersistentCacheRepository {
+    static class NoPersistentCacheRepository extends PersistentCacheRepository {
 
         @Nonnull
         @Override

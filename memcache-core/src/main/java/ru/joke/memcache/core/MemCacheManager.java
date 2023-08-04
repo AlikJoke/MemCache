@@ -12,6 +12,8 @@ public interface MemCacheManager extends Lifecycle {
 
     boolean createCache(@Nonnull CacheConfiguration configuration);
 
+    boolean removeCache(@Nonnull String cacheName);
+
     @Nonnull
     @CheckReturnValue
     <K extends Serializable, V extends Serializable> Optional<MemCache<K, V>> getCache(@Nonnull String cacheName);

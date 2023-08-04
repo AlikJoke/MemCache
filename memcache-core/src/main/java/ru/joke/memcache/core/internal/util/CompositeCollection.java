@@ -27,11 +27,7 @@ public final class CompositeCollection<E> extends AbstractCollection<E> {
 
     @Override
     public int size() {
-        int size = 0;
-        for (Collection<E> collection : this.collections) {
-            size += collection.size();
-        }
-        return size;
+        return (int) commonCount();
     }
 
     @Override

@@ -52,7 +52,7 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
         this.persistentCacheRepository = persistentCacheRepository;
         this.eternal = configuration.expirationConfiguration().eternal();
         this.segments = createSegments();
-        this.listeners = new CopyOnWriteArrayList<>(configuration.registeredEventListeners());
+        this.listeners = new CopyOnWriteArrayList<>(configuration.eventListeners());
         this.entryMetadataFactory = metadataFactory;
         this.statistics = new InternalMemCacheStatistics(() -> {
             final var segments = this.segments;
@@ -122,7 +122,7 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
     @Override
     public boolean registerEventListener(@Nonnull CacheEntryEventListener<K, V> listener) {
         if (this.status != ComponentStatus.RUNNING && this.status != ComponentStatus.INITIALIZING) {
-            throw new LifecycleException("Event listener registration available only in " + ComponentStatus.RUNNING + " or " + ComponentStatus.INITIALIZING + " state. Current state is " + this.status);
+            throw new LifecycleException("Event listener registration available only in " + ComponentStatus.RUNNING + " or " + ComponentStatus.INITIALIZING + " state; current state is " + this.status);
         }
 
         logger.debug("Event listener registration was called {} for cache {}", listener, this);
@@ -132,7 +132,7 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
     @Override
     public boolean deregisterEventListener(@Nonnull CacheEntryEventListener<K, V> listener) {
         if (this.status != ComponentStatus.RUNNING && this.status != ComponentStatus.INITIALIZING) {
-            throw new LifecycleException("Event listener deregistration available only in " + ComponentStatus.RUNNING + " or " + ComponentStatus.INITIALIZING + " state. Current state is " + this.status);
+            throw new LifecycleException("Event listener deregistration available only in " + ComponentStatus.RUNNING + " or " + ComponentStatus.INITIALIZING + " state; current state is " + this.status);
         }
 
         logger.debug("Event listener will be unregistered {} for cache {}", listener, this);
@@ -517,6 +517,10 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
 
     void clearExpired() {
         logger.trace("Expired entries cleaning was called: {}", this);
+
+        if (this.status != ComponentStatus.RUNNING) {
+            return;
+        }
 
         final long idleExpirationTimeout = this.configuration.expirationConfiguration().idleTimeout();
         final long idleExpirationTime = System.currentTimeMillis() - idleExpirationTimeout;

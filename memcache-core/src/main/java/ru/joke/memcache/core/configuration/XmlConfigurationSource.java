@@ -12,6 +12,7 @@ import ru.joke.memcache.core.events.CacheEntryEventListener;
 import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
+import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilder;
@@ -358,6 +359,7 @@ public final class XmlConfigurationSource implements ConfigurationSource {
         };
     }
 
+    @NotThreadSafe
     public static class Builder {
 
         private boolean enableAutoDetection;

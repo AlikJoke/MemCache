@@ -16,7 +16,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 @ThreadSafe
-public class MemCacheManagerBusAdapter implements CacheManager {
+public final class MemCacheManagerBusAdapter implements CacheManager {
 
     private static final String CACHE_MANAGER_ID = "memcache-manager";
 

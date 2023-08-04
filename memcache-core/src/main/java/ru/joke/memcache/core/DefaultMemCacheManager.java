@@ -41,6 +41,11 @@ public final class DefaultMemCacheManager implements MemCacheManager, Closeable 
     }
 
     @Override
+    public boolean removeCache(@Nonnull String cacheName) {
+        return this.delegateManager.removeCache(cacheName);
+    }
+
+    @Override
     @CheckReturnValue
     @Nonnull
     public <K extends Serializable, V extends Serializable> Optional<MemCache<K, V>> getCache(@Nonnull String cacheName) {

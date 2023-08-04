@@ -20,7 +20,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 @ThreadSafe
-final class DiskPersistentCacheRepository implements PersistentCacheRepository {
+final class DiskPersistentCacheRepository extends PersistentCacheRepository {
 
     private static final Logger logger = LoggerFactory.getLogger(DiskPersistentCacheRepository.class);
 
@@ -47,7 +47,7 @@ final class DiskPersistentCacheRepository implements PersistentCacheRepository {
     }
 
     @Override
-    public synchronized  <K extends Serializable, V extends Serializable> void save(@Nonnull Collection<MemCacheEntry<K, V>> entries) {
+    synchronized  <K extends Serializable, V extends Serializable> void save(@Nonnull Collection<MemCacheEntry<K, V>> entries) {
 
         logger.info("Persistence of entries to disk was called: {}", entries.size());
 
@@ -64,7 +64,7 @@ final class DiskPersistentCacheRepository implements PersistentCacheRepository {
 
     @Override
     @Nonnull
-    public synchronized <K extends Serializable, V extends Serializable> Collection<MemCacheEntry<K, V>> load() {
+    synchronized <K extends Serializable, V extends Serializable> Collection<MemCacheEntry<K, V>> load() {
 
         logger.info("Restore of data from disk was called");
 

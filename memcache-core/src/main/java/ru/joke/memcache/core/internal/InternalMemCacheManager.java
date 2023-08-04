@@ -15,6 +15,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.Predicate;
 
 @ThreadSafe
 public final class InternalMemCacheManager implements MemCacheManager {
@@ -48,7 +49,7 @@ public final class InternalMemCacheManager implements MemCacheManager {
     @Override
     public synchronized void initialize() {
         if (this.status != ComponentStatus.UNAVAILABLE) {
-            throw new LifecycleException("Status must be " + ComponentStatus.UNAVAILABLE + ". Current state is " + this.status);
+            throw new LifecycleException("Status must be " + ComponentStatus.UNAVAILABLE + "; current state is " + this.status);
         }
 
         logger.info("Initialization of cache manager was called");
@@ -87,17 +88,33 @@ public final class InternalMemCacheManager implements MemCacheManager {
     @Override
     public synchronized boolean createCache(@Nonnull CacheConfiguration configuration) {
         if (this.status != ComponentStatus.RUNNING && this.status != ComponentStatus.INITIALIZING) {
-            throw new LifecycleException("Cache creation available only in " + ComponentStatus.RUNNING + " or " + ComponentStatus.INITIALIZING + " state. Current state is " + this.status);
+            throw new LifecycleException("Cache creation available only in " + ComponentStatus.RUNNING + " or " + ComponentStatus.INITIALIZING + " state; current state is " + this.status);
         }
         
         return createCache(configuration, true);
+    }
+
+    @Override
+    public synchronized boolean removeCache(@Nonnull String cacheName) {
+        if (this.status != ComponentStatus.RUNNING && this.status != ComponentStatus.INITIALIZING) {
+            throw new LifecycleException("Cache creation available only in " + ComponentStatus.RUNNING + " or " + ComponentStatus.INITIALIZING + " state; current state is " + this.status);
+        }
+
+        final MapMemCache<?, ?> cache = this.caches.remove(cacheName);
+        if (cache != null) {
+            cache.shutdown();
+            this.scheduledCleaningTasks.forEach(f -> f.cancel(true));
+            this.scheduledCleaningTasks = scheduleCleaningTasks(true);
+        }
+
+        return cache != null;
     }
 
     @Nonnull
     @Override
     public <K extends Serializable, V extends Serializable> Optional<MemCache<K, V>> getCache(@Nonnull String cacheName) {
         if (this.status != ComponentStatus.RUNNING) {
-            throw new LifecycleException("Cache retrieval available only in " + ComponentStatus.RUNNING + " state. Current state is " + this.status);
+            throw new LifecycleException("Cache retrieval available only in " + ComponentStatus.RUNNING + " state; current state is " + this.status);
         }
 
         @SuppressWarnings("unchecked")
@@ -125,7 +142,7 @@ public final class InternalMemCacheManager implements MemCacheManager {
     public synchronized void shutdown() {
 
         if (this.status != ComponentStatus.RUNNING) {
-            throw new LifecycleException("Shutdown available only in " + ComponentStatus.RUNNING + " state. Current state is " + this.status);
+            throw new LifecycleException("Shutdown available only in " + ComponentStatus.RUNNING + " state; current state is " + this.status);
         }
 
         logger.info("Shutdown of cache manager was called");
@@ -187,14 +204,17 @@ public final class InternalMemCacheManager implements MemCacheManager {
                 this.caches
                         .values()
                         .stream()
-                        .filter(MapMemCache::eternal)
+                        .filter(Predicate.not(MapMemCache::eternal))
                         .toList();
 
-        final int partsCount = cleanableCaches.size() / this.cleaningPoolSize;
+        final int partsCount = Math.max(cleanableCaches.size() / this.cleaningPoolSize, 1);
         final List<MapMemCache<?, ?>> cachesPart = new ArrayList<>();
         for (int i = 1; i <= cleanableCaches.size(); i++) {
             final MapMemCache<?, ?> cache = cleanableCaches.get(i - 1);
-            if (i % partsCount == 0 || i == cleanableCaches.size()) {
+
+            cachesPart.add(cache);
+
+            if (i % partsCount == 0 && partsCount != 1 || partsCount == 1 && i == cleanableCaches.size()) {
 
                 final List<MapMemCache<?, ?>> cachesToProcessing = new ArrayList<>(cachesPart);
                 cachesPart.clear();
@@ -221,8 +241,6 @@ public final class InternalMemCacheManager implements MemCacheManager {
                         );
                 this.scheduledCleaningTasks.add(taskFuture);
             }
-
-            cachesPart.add(cache);
         }
 
         return cleaningTasks;

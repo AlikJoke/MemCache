@@ -9,6 +9,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serializable;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -19,7 +20,7 @@ public final class MemCacheBusAdapter<K extends Serializable, V extends Serializ
     private final MemCache<K, V> memCache;
 
     public MemCacheBusAdapter(@Nonnull MemCache<K, V> memCache) {
-        this.memCache = memCache;
+        this.memCache = Objects.requireNonNull(memCache, "memCache");
     }
 
     @Override
