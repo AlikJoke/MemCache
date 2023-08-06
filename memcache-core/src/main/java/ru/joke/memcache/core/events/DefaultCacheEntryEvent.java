@@ -28,6 +28,6 @@ public record DefaultCacheEntryEvent<K extends Serializable, V extends Serializa
             @Nullable V newValue,
             @Nonnull EventType eventType,
             @Nonnull MemCache<K, V> source) {
-        this(key, Optional.ofNullable(newValue), Optional.ofNullable(oldValue), eventType, source);
+        this(key, Optional.ofNullable(oldValue), Optional.ofNullable(newValue), eventType, source);
     }
 }

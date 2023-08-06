@@ -103,6 +103,16 @@ public interface CacheConfiguration {
 
         @Nonnull
         public CacheConfiguration build() {
+            if (this.evictionPolicy == null) {
+                throw new InvalidConfigurationException("Eviction policy must be not null");
+            } else if (this.cacheName == null || this.cacheName.isBlank()) {
+                throw new InvalidConfigurationException("Cache name must be not blank string");
+            } else if (this.memoryStoreConfiguration == null) {
+                throw new InvalidConfigurationException("Memory store configuration must be not null");
+            } else if (this.expirationConfiguration == null) {
+                throw new InvalidConfigurationException("Expiration configuration must be not null");
+            }
+
             final var persistentStoreConfig = Optional.ofNullable(this.persistentStoreConfiguration);
             return new CacheConfiguration() {
                 @Override
