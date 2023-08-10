@@ -2,8 +2,6 @@ package ru.joke.memcache.core.configuration;
 
 import org.junit.jupiter.api.Test;
 
-import java.util.UUID;
-
 import static org.junit.jupiter.api.Assertions.*;
 
 public class ExpirationConfigurationTest {

@@ -12,23 +12,26 @@ import ru.joke.memcache.core.configuration.ConfigurationSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
+import java.io.Closeable;
 import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Predicate;
 
 @ThreadSafe
-public final class InternalMemCacheManager implements MemCacheManager {
+public final class InternalMemCacheManager implements MemCacheManager, Closeable {
 
     private static final Logger logger = LoggerFactory.getLogger(InternalMemCacheManager.class);
 
     private final Map<String, MapMemCache<?, ?>> caches = new ConcurrentHashMap<>();
     private final ConfigurationSource configurationSource;
     private final Configuration configuration;
+
+    private List<Future<?>> scheduledCleaningTasks = new ArrayList<>();
     private volatile ComponentStatus status = ComponentStatus.UNAVAILABLE;
+
     private ScheduledExecutorService cleaningThreadPool;
     private AsyncOpsInvoker asyncOpsInvoker;
-    private List<Future<?>> scheduledCleaningTasks;
     private int cleaningPoolSize;
 
     public InternalMemCacheManager() {
@@ -136,6 +139,11 @@ public final class InternalMemCacheManager implements MemCacheManager {
     @Override
     public ComponentStatus status() {
         return this.status;
+    }
+
+    @Override
+    public void close() {
+        shutdown();
     }
 
     @Override
