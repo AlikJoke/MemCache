@@ -2,6 +2,8 @@ package ru.joke.memcache.core.configuration;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.UUID;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 public class ExpirationConfigurationTest {
@@ -79,4 +81,30 @@ public class ExpirationConfigurationTest {
         assertEquals(lifespan, config.lifespan(), "Lifespan must be equal to value that is set in builder");
     }
 
+    @Test
+    public void testEqualityOfConfigs() {
+        final long idleTimeout = 1000;
+        final long lifespan = 2000;
+
+        final var config1 = ExpirationConfiguration
+                                .builder()
+                                    .setLifespan(lifespan)
+                                    .setIdleTimeout(idleTimeout)
+                                .build();
+        final var config2 = ExpirationConfiguration
+                                .builder()
+                                    .setLifespan(lifespan)
+                                    .setIdleTimeout(idleTimeout)
+                                .build();
+        final var config3 = ExpirationConfiguration
+                                .builder()
+                                    .setLifespan(lifespan + 1)
+                                    .setIdleTimeout(idleTimeout)
+                                .build();
+
+        assertEquals(config1, config2);
+        assertEquals(config1.hashCode(), config2.hashCode());
+
+        assertNotEquals(config2, config3);
+    }
 }

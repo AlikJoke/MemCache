@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<configuration>
+    <cache name="test1">
+        <memory-store max-entries="12" concurrency-level="2"/>
+    </cache>
+    <cache name="test2"/>
+    <cache name="test3"/>
+</configuration>

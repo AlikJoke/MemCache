@@ -47,9 +47,13 @@ final class DiskPersistentCacheRepository extends PersistentCacheRepository {
     }
 
     @Override
-    synchronized  <K extends Serializable, V extends Serializable> void save(@Nonnull Collection<MemCacheEntry<K, V>> entries) {
+    synchronized <K extends Serializable, V extends Serializable> void save(@Nonnull Collection<MemCacheEntry<K, V>> entries) {
 
         logger.info("Persistence of entries to disk was called: {}", entries.size());
+
+        if (entries.isEmpty()) {
+            return;
+        }
 
         try (final FileChannel fileChannel = openDataStoreFileWriteChannel();
              final ObjectOutput out = new ObjectOutputChannel(fileChannel)) {
@@ -143,7 +147,7 @@ final class DiskPersistentCacheRepository extends PersistentCacheRepository {
     private FileChannel openDataStoreFileWriteChannel() throws IOException {
         return FileChannel.open(
                 this.dataStore.toPath(),
-                StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.APPEND
+                StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.APPEND
         );
     }
 

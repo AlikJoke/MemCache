@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+               xsi:noNamespaceSchemaLocation="../../main/resources/configuration-schema/configuration.xsd"
+               expired-cleaning-pool-size="2" async-cache-ops-parallelism="20">
+    <cache name="test1">
+        <eviction-policy>LFU</eviction-policy>
+        <memory-store max-entries="20" concurrency-level="2"/>
+        <persistent-disk-store uid="t1" location="/opt/loc"/>
+        <expiration eternal="true"/>
+        <event-listeners>
+            <class>ru.joke.memcache.core.configuration.XmlConfigurationSourceTest$Listener1</class>
+        </event-listeners>
+    </cache>
+    <cache name="test2">
+        <eviction-policy>FIFO</eviction-policy>
+        <memory-store max-entries="30" concurrency-level="3"/>
+        <persistent-disk-store uid="t1" location="/opt/loc"/>
+        <expiration eternal="true" lifespan="10000" idle-ttl="1000"/>
+        <event-listeners>
+            <class>ru.joke.memcache.core.configuration.XmlConfigurationSourceTest$Listener1</class>
+        </event-listeners>
+    </cache>
+</configuration>

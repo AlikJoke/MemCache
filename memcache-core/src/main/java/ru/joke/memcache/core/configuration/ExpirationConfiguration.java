@@ -70,6 +70,26 @@ public interface ExpirationConfiguration {
                             ", idleTimeout=" + idleTimeout() +
                             '}';
                 }
+
+                @Override
+                public int hashCode() {
+                    int result = 31;
+                    result = 31 * result + (int) lifespan;
+                    result = 31 * result + (int) idleTimeout;
+                    return result;
+                }
+
+                @Override
+                public boolean equals(Object o) {
+                    if (this == o) {
+                        return true;
+                    }
+                    if (!(o instanceof ExpirationConfiguration that)) {
+                        return false;
+                    }
+
+                    return that.lifespan() == lifespan && that.idleTimeout() == idleTimeout;
+                }
             };
         }
     }

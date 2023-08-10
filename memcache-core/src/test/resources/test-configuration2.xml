@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+               xsi:noNamespaceSchemaLocation="../../main/resources/configuration-schema/configuration.xsd"
+               expired-cleaning-pool-size="1" async-cache-ops-parallelism="41">
+    <cache name="test3">
+        <eviction-policy>LRU</eviction-policy>
+        <memory-store max-entries="40" concurrency-level="4"/>
+        <persistent-disk-store uid="t2" location="/opt/loc2"/>
+        <expiration lifespan="1000"/>
+        <event-listeners>
+            <class>ru.joke.memcache.core.configuration.XmlConfigurationSourceTest$Listener1</class>
+        </event-listeners>
+    </cache>
+</configuration>

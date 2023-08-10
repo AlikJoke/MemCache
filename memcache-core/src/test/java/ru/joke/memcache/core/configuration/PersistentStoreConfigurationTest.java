@@ -42,4 +42,30 @@ public class PersistentStoreConfigurationTest {
         assertEquals(location, config.location(), "Location must be equal to the value set in builder");
         assertEquals(uid, config.uid(), "Uid must be equal to the value set in builder");
     }
+
+    @Test
+    public void testEqualityOfConfigs() {
+        final String uid = UUID.randomUUID().toString();
+        final String location = "/path/to/store";
+        final var config1 = PersistentStoreConfiguration
+                                .builder()
+                                    .setLocation(location)
+                                    .setUid(uid)
+                                .build();
+        final var config2 = PersistentStoreConfiguration
+                                .builder()
+                                    .setLocation(location)
+                                    .setUid(uid)
+                                .build();
+        final var config3 = PersistentStoreConfiguration
+                                .builder()
+                                    .setLocation(location)
+                                    .setUid(uid + "!")
+                                .build();
+
+        assertEquals(config1, config2);
+        assertEquals(config1.hashCode(), config2.hashCode());
+
+        assertNotEquals(config2, config3);
+    }
 }

@@ -8,6 +8,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -164,6 +165,23 @@ public interface CacheConfiguration {
                             ", persistentStoreConfiguration=" + persistentStoreConfiguration() +
                             ", expirationConfiguration=" + expirationConfiguration +
                             '}';
+                }
+
+                @Override
+                public int hashCode() {
+                    return Objects.hashCode(cacheName);
+                }
+
+                @Override
+                public boolean equals(Object o) {
+                    if (this == o) {
+                        return true;
+                    }
+                    if (!(o instanceof final CacheConfiguration that)) {
+                        return false;
+                    }
+
+                    return that.cacheName().equals(cacheName);
                 }
             };
         }

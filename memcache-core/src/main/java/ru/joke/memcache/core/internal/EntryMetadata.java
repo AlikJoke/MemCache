@@ -19,6 +19,24 @@ abstract class EntryMetadata<T extends EntryMetadata<T, K>, K> implements Compar
         this.expiredByLifespanAt = expirationTimeout == -1 ? Long.MAX_VALUE : (System.currentTimeMillis() + expirationTimeout);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        final EntryMetadata<?, ?> that = (EntryMetadata<?, ?>) o;
+        return key.equals(that.key);
+    }
+
+    @Override
+    public int hashCode() {
+        return key.hashCode();
+    }
+
     protected void onUsage() {
         this.lastAccessed = System.currentTimeMillis();
     }

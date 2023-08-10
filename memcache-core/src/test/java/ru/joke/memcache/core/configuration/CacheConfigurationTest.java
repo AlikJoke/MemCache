@@ -95,7 +95,7 @@ public class CacheConfigurationTest {
     }
 
     @Test
-    void testBuilderWithNullExpirationConfig() {
+    public void testBuilderWithNullExpirationConfig() {
         final var builder = CacheConfiguration
                                 .builder()
                                     .setCacheName("test")
@@ -103,5 +103,26 @@ public class CacheConfigurationTest {
                                     .setMemoryStoreConfiguration(memoryStoreConfig);
 
         assertThrows(InvalidConfigurationException.class, builder::build, "Expiration config must be set");
+    }
+
+    @Test
+    public void testEqualityOfConfigs() {
+        final var config1 = CacheConfiguration
+                                .builder()
+                                    .setCacheName("test")
+                                    .setEvictionPolicy(CacheConfiguration.EvictionPolicy.LRU)
+                                    .setMemoryStoreConfiguration(memoryStoreConfig)
+                                    .setExpirationConfiguration(expirationConfig)
+                                .build();
+        final var config2 = CacheConfiguration
+                                .builder()
+                                    .setCacheName("test")
+                                    .setEvictionPolicy(CacheConfiguration.EvictionPolicy.LFU)
+                                    .setMemoryStoreConfiguration(memoryStoreConfig)
+                                    .setExpirationConfiguration(expirationConfig)
+                                .build();
+
+        assertEquals(config1, config2);
+        assertEquals(config1.hashCode(), config2.hashCode());
     }
 }

@@ -133,7 +133,7 @@ final class InternalMemCacheStatistics implements MemCacheStatistics {
             this.putHits.set(0);
             this.putMisses.set(0);
             this.hitsCount.set(0);
-            this.expirationsCount.set(0);
+            this.evictionsCount.set(0);
         } finally {
             this.resetInProgress = false;
         }

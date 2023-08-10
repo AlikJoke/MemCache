@@ -3,6 +3,7 @@ package ru.joke.memcache.core.configuration;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
+import java.util.Objects;
 
 public interface PersistentStoreConfiguration {
 
@@ -59,6 +60,25 @@ public interface PersistentStoreConfiguration {
                             "location=" + location() +
                             ", uid=" + uid() +
                             '}';
+                }
+
+                @Override
+                public int hashCode() {
+                    int result = uid.hashCode();
+                    result = 31 * result + (location == null ? 0 : location.hashCode());
+                    return result;
+                }
+
+                @Override
+                public boolean equals(Object o) {
+                    if (this == o) {
+                        return true;
+                    }
+                    if (!(o instanceof PersistentStoreConfiguration that)) {
+                        return false;
+                    }
+
+                    return that.uid().equals(uid) && Objects.equals(that.location(), location);
                 }
             };
         }

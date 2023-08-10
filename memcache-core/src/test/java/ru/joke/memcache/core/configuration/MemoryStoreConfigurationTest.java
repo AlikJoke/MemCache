@@ -2,8 +2,7 @@ package ru.joke.memcache.core.configuration;
 
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class MemoryStoreConfigurationTest {
 
@@ -53,11 +52,43 @@ public class MemoryStoreConfigurationTest {
         final var builder =
                 MemoryStoreConfiguration
                         .builder()
-                        .setConcurrencyLevel(concurrencyLevel)
-                        .setMaxEntries(maxEntries);
+                            .setConcurrencyLevel(concurrencyLevel)
+                            .setMaxEntries(maxEntries);
 
         final var config = builder.build();
         assertEquals(maxEntries, config.concurrencyLevel(), "Concurrency level must be not equal to the value set in builder because that value is higher than max entries count");
         assertEquals(maxEntries, config.maxEntries(), "Max entries count must be equal to the value set in builder");
+    }
+
+    @Test
+    public void testEqualityOfConfigs() {
+        final int concurrencyLevel = 12;
+        final int maxEntries = 24;
+
+        final var config1 =
+                MemoryStoreConfiguration
+                        .builder()
+                            .setConcurrencyLevel(concurrencyLevel)
+                            .setMaxEntries(maxEntries)
+                        .build();
+
+        final var config2 =
+                MemoryStoreConfiguration
+                        .builder()
+                            .setConcurrencyLevel(concurrencyLevel)
+                            .setMaxEntries(maxEntries)
+                        .build();
+
+        final var config3 =
+                MemoryStoreConfiguration
+                        .builder()
+                            .setConcurrencyLevel(concurrencyLevel + 1)
+                            .setMaxEntries(maxEntries)
+                        .build();
+
+        assertEquals(config1, config2);
+        assertEquals(config1.hashCode(), config2.hashCode());
+
+        assertNotEquals(config2, config3);
     }
 }

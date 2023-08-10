@@ -59,6 +59,27 @@ public interface MemoryStoreConfiguration {
                             ", concurrencyLevel=" + concurrencyLevel() +
                             '}';
                 }
+
+                @Override
+                public boolean equals(Object o) {
+                    if (this == o) {
+                        return true;
+                    }
+                    if (!(o instanceof final MemoryStoreConfiguration that)) {
+                        return false;
+                    }
+
+                    return that.maxEntries() == maxEntries
+                            && that.concurrencyLevel() == concurrencyLevel;
+                }
+
+                @Override
+                public int hashCode() {
+                    int result = 31;
+                    result = 31 * result + maxEntries;
+                    result = 31 * result + concurrencyLevel;
+                    return result;
+                }
             };
         }
     }
