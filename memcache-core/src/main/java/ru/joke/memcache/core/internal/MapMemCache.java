@@ -15,11 +15,15 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serializable;
-import java.util.*;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -27,14 +31,17 @@ import java.util.function.Function;
 final class MapMemCache<K extends Serializable, V extends Serializable> implements MemCache<K, V> {
 
     private static final Logger logger = LoggerFactory.getLogger(MapMemCache.class);
+    private static final int ALLOWED_OVERFLOW_NO_LOCK = 1000;
 
     private final CacheConfiguration configuration;
     private final AsyncOpsInvoker asyncOpsInvoker;
     private final EntryMetadataFactory entryMetadataFactory;
-    private final Set<EntryMetadata<?, K>> entriesMetadata;
+    private final ConcurrentSkipListSet<EntryMetadata<?, K>> entriesMetadata;
     private final List<CacheEntryEventListener<K, V>> listeners;
     private final ThreadLocal<MemCacheEntry<K, V>> oldEntryContainer;
+    private final AtomicInteger metadataCounter;
     private final boolean eternal;
+    private final int maxEntries;
     private final PersistentCacheRepository persistentCacheRepository;
     private final InternalMemCacheStatistics statistics;
 
@@ -47,6 +54,8 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
                 @Nonnull EntryMetadataFactory metadataFactory) {
         this.status = ComponentStatus.UNAVAILABLE;
         this.configuration = configuration;
+        this.maxEntries = configuration().memoryStoreConfiguration().maxEntries();
+        this.metadataCounter = new AtomicInteger(0);
         this.asyncOpsInvoker = asyncOpsInvoker;
         this.oldEntryContainer = new ThreadLocal<>();
         this.persistentCacheRepository = persistentCacheRepository;
@@ -64,45 +73,26 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
             return count;
         });
 
-        final long maxEntries = configuration.memoryStoreConfiguration().maxEntries();
+        final int maxEntries = configuration.memoryStoreConfiguration().maxEntries();
         this.entriesMetadata = new ConcurrentSkipListSet<>() {
             @Override
             public boolean add(EntryMetadata<?, K> metadata) {
-                final boolean overflow = size() >= maxEntries;
-
-                if (overflow) {
-                    if (contains(metadata)) {
-                        return false;
-                    }
-
-                    // Removing by remove(..) may be run concurrent - its normal
-                    synchronized (this) {
-
-                        // Firstly we will try to remove expired entries if possible
-                        if (!eternal && size() >= maxEntries) {
-                            clearExpired();
-                        }
-
-                        while (size() >= maxEntries) {
-
-                            final EntryMetadata<?, K> removedEntry = first();
-                            if (removedEntry != null) {
-                                MapMemCache.this.computeIfPresent(
-                                        removedEntry.key(),
-                                        (k, v) -> {
-                                            MapMemCache.this.statistics.onEviction();
-                                            return null;
-                                        },
-                                        true
-                                );
-                            }
-                        }
-
-                        return super.add(metadata);
-                    }
+                if (super.add(metadata)) {
+                    metadataCounter.incrementAndGet();
+                    return true;
                 }
 
-                return super.add(metadata);
+                return false;
+            }
+
+            @Override
+            public boolean remove(Object o) {
+                if (super.remove(o)) {
+                    metadataCounter.decrementAndGet();
+                    return true;
+                }
+
+                return false;
             }
         };
     }
@@ -178,14 +168,7 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
 
     @Override
     public boolean remove(@Nonnull K key, @Nonnull V value) {
-        final boolean result = replace(key, value, null);
-        if (result) {
-            this.statistics.onRemovalHit();
-        } else {
-            this.statistics.onRemovalMiss();
-        }
-
-        return result;
+        return replace(key, value, null);
     }
 
     @Nonnull
@@ -250,11 +233,13 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
                     this.statistics.onRemovalHit();
                 } else if (!oldV.equals(newVal)) {
                     this.statistics.onPutHit();
+                } else {
+                    this.statistics.onPutMiss();
                 }
 
                 return newVal;
             }
-        });
+        }, false, false);
     }
 
     @Nonnull
@@ -292,6 +277,8 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
             this.statistics.onReadOnlyRetrievalHit();
             return Optional.of(resultEntry.value());
         }
+
+        clearEntriesByEvictionPolicyIfOverflow();
 
         this.statistics.onPutHit();
 
@@ -342,8 +329,13 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
                 (k, v) -> {
                     this.oldEntryContainer.set(v);
 
-                    if (v == null && oldValue != null || v != null && oldValue != v.value()) {
-                        this.statistics.onPutMiss();
+                    if (v == null && oldValue != null || v != null && !v.value().equals(oldValue)) {
+                        if (newValue != null) {
+                            this.statistics.onPutMiss();
+                        } else {
+                            this.statistics.onRemovalMiss();
+                        }
+
                         return v;
                     }
 
@@ -381,6 +373,10 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
                                             : newValue == null
                                                 ? EventType.REMOVED
                                                 : EventType.UPDATED;
+            if (eventType == EventType.ADDED) {
+                clearEntriesByEvictionPolicyIfOverflow();
+            }
+
             final var event = new DefaultCacheEntryEvent<>(key, oldValue, newValue, eventType, this);
             this.listeners.forEach(l -> l.onEvent(event));
 
@@ -504,7 +500,7 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
 
     @Override
     public String toString() {
-        return "MapMemCache{" +
+        return "MemCache{" +
                 "name=" + name() +
                 ", eternal=" + eternal +
                 ", status=" + status +
@@ -515,6 +511,33 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
         return this.eternal;
     }
 
+    void clearEntriesByEvictionPolicyIfOverflow() {
+        final boolean overflow = this.metadataCounter.get() > this.maxEntries;
+
+        if (overflow) {
+
+            // Firstly we will try to remove expired entries if possible
+            if (!this.eternal && this.metadataCounter.get() > this.maxEntries) {
+                clearExpired();
+            }
+
+            while (this.metadataCounter.get() > this.maxEntries) {
+
+                final EntryMetadata<?, K> removedEntry = this.entriesMetadata.first();
+                if (removedEntry != null) {
+                    computeIfPresent(
+                            removedEntry.key(),
+                            (k, v) -> {
+                                this.statistics.onEviction();
+                                return null;
+                            },
+                            true
+                    );
+                }
+            }
+        }
+    }
+
     void clearExpired() {
         logger.trace("Expired entries cleaning was called: {}", this);
 
@@ -523,7 +546,7 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
         }
 
         final long idleExpirationTimeout = this.configuration.expirationConfiguration().idleTimeout();
-        final long idleExpirationTime = System.currentTimeMillis() - idleExpirationTimeout;
+        final long idleExpirationTime = idleExpirationTimeout < 0 ? idleExpirationTimeout : System.currentTimeMillis() - idleExpirationTimeout;
         this.entriesMetadata.forEach(metadata -> {
             if (metadata.expiredByLifespanAt() <= System.currentTimeMillis() || metadata.lastAccessed() <= idleExpirationTime) {
                 // eviction of element from cache data
@@ -548,6 +571,8 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
             this.computeSegment(key).put(key, entry);
             this.entriesMetadata.add(entry.metadata());
         });
+
+        clearEntriesByEvictionPolicyIfOverflow();
 
         logger.debug("Restore from disk was completed (entries {}): {}", restoredEntries.size(), this);
     }
@@ -660,6 +685,11 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
                                                     ? EventType.EXPIRED
                                                     : EventType.REMOVED
                                                 : EventType.UPDATED;
+
+            if (eventType == EventType.ADDED) {
+                clearEntriesByEvictionPolicyIfOverflow();
+            }
+
             final var event = new DefaultCacheEntryEvent<>(key, oldValue, newValue, eventType, this);
             this.listeners.forEach(l -> l.onEvent(event));
 

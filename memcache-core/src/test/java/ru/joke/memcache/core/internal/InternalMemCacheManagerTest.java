@@ -6,10 +6,10 @@ import ru.joke.memcache.core.Lifecycle;
 import ru.joke.memcache.core.MemCache;
 import ru.joke.memcache.core.configuration.CacheConfiguration;
 import ru.joke.memcache.core.configuration.ConfigurationSource;
-import ru.joke.memcache.core.configuration.ExpirationConfiguration;
-import ru.joke.memcache.core.configuration.MemoryStoreConfiguration;
+import ru.joke.memcache.core.fixtures.TestCacheConfigBuilder;
 
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -21,8 +21,8 @@ public class InternalMemCacheManagerTest {
 
     @BeforeEach
     void setUp() {
-        this.cacheConfiguration1 = buildCacheConfig("test1", 20, 2, true, -1, -1);
-        this.cacheConfiguration2 = buildCacheConfig("test2", 40, 4, false, 1000, 100);
+        this.cacheConfiguration1 = TestCacheConfigBuilder.build("test1", CacheConfiguration.EvictionPolicy.LFU, 20, 2, null, null, true, -1, -1, Collections.emptyList());
+        this.cacheConfiguration2 = TestCacheConfigBuilder.build("test2", CacheConfiguration.EvictionPolicy.LFU, 40, 4, null, null, false, 1000, 100, Collections.emptyList());
     }
 
     @Test
@@ -69,7 +69,7 @@ public class InternalMemCacheManagerTest {
             boolean result = cacheManager.createCache(this.cacheConfiguration1);
             assertFalse(result, "Cache already must present in cache manager");
 
-            final var cacheConfig3 = buildCacheConfig("test3", 10, 1, true, -1, -1);
+            final var cacheConfig3 = TestCacheConfigBuilder.build("test3", CacheConfiguration.EvictionPolicy.LFU, 10, 1, null, null, true, -1, -1, Collections.emptyList());
             result = cacheManager.createCache(cacheConfig3);
 
             assertTrue(result, "Cache must be added in cache manager");
@@ -139,34 +139,5 @@ public class InternalMemCacheManagerTest {
                     .setAsyncCacheOpsParallelismLevel(2)
                     .add(this.cacheConfiguration1)
                     .add(this.cacheConfiguration2);
-    }
-
-    private CacheConfiguration buildCacheConfig(
-            final String cacheName,
-            final int maxEntries,
-            final int concurrencyLevel,
-            final boolean eternal,
-            final long lifespan,
-            final long idleTimeout) {
-        return CacheConfiguration
-                .builder()
-                    .setCacheName(cacheName)
-                    .setEvictionPolicy(CacheConfiguration.EvictionPolicy.LFU)
-                    .setMemoryStoreConfiguration(
-                            MemoryStoreConfiguration
-                                    .builder()
-                                        .setMaxEntries(maxEntries)
-                                        .setConcurrencyLevel(concurrencyLevel)
-                                    .build()
-                    )
-                    .setExpirationConfiguration(
-                            ExpirationConfiguration
-                                    .builder()
-                                        .setEternal(eternal)
-                                        .setLifespan(lifespan)
-                                        .setIdleTimeout(idleTimeout)
-                                    .build()
-                    )
-                .build();
     }
 }

@@ -3,9 +3,7 @@ package ru.joke.memcache.core.internal;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import ru.joke.memcache.core.configuration.CacheConfiguration;
-import ru.joke.memcache.core.configuration.ExpirationConfiguration;
-import ru.joke.memcache.core.configuration.MemoryStoreConfiguration;
-import ru.joke.memcache.core.configuration.PersistentStoreConfiguration;
+import ru.joke.memcache.core.fixtures.TestCacheConfigBuilder;
 
 import java.io.File;
 import java.io.IOException;
@@ -25,31 +23,7 @@ public class DiskPersistentCacheRepositoryTest {
         final String location = "${user.home}/tst";
         final String cacheName = "test";
         this.storePath = System.getProperty("user.home") + "/tst/" + uid + "/" + cacheName + ".bin";
-        final var cacheConfiguration = CacheConfiguration
-                                        .builder()
-                                            .setCacheName("test")
-                                            .setEvictionPolicy(CacheConfiguration.EvictionPolicy.LFU)
-                                            .setMemoryStoreConfiguration(
-                                                    MemoryStoreConfiguration
-                                                            .builder()
-                                                                .setMaxEntries(10)
-                                                                .setConcurrencyLevel(1)
-                                                            .build()
-                                            )
-                                            .setExpirationConfiguration(
-                                                    ExpirationConfiguration
-                                                            .builder()
-                                                                .setEternal(true)
-                                                            .build()
-                                            )
-                                            .setPersistentStoreConfiguration(
-                                                    PersistentStoreConfiguration
-                                                            .builder()
-                                                                .setUid(uid)
-                                                                .setLocation(location)
-                                                            .build()
-                                            )
-                                        .build();
+        final var cacheConfiguration = TestCacheConfigBuilder.build("test", CacheConfiguration.EvictionPolicy.LFU, 10, 1, uid, location, true, -1, -1, Collections.emptyList());
         this.metadataFactory = new EntryMetadataFactory(cacheConfiguration);
         this.repository = new DiskPersistentCacheRepository(cacheConfiguration, this.metadataFactory);
 

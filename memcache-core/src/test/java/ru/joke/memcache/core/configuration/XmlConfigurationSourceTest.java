@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import ru.joke.memcache.core.events.CacheEntriesEvent;
 import ru.joke.memcache.core.events.CacheEntryEvent;
 import ru.joke.memcache.core.events.CacheEntryEventListener;
+import ru.joke.memcache.core.fixtures.TestCacheConfigBuilder;
 
 import javax.annotation.Nonnull;
 import java.io.File;
@@ -75,9 +76,9 @@ public class XmlConfigurationSourceTest {
         assertEquals(3, configuration.cacheConfigurations().size(), "Configurations count must be equal");
         assertEquals(41, configuration.asyncCacheOpsParallelismLevel(), "Async cache ops parallelism level must be equal to max value from config files");
 
-        final CacheConfiguration cacheConfiguration1 = buildCacheConfig("test1", CacheConfiguration.EvictionPolicy.LFU, 20, 2, "t1", "/opt/loc", true, -1, -1);
-        final CacheConfiguration cacheConfiguration2 = buildCacheConfig("test2", CacheConfiguration.EvictionPolicy.FIFO, 30, 3, "t1", "/opt/loc", true, 10000, 100);
-        final CacheConfiguration cacheConfiguration3 = buildCacheConfig("test3", CacheConfiguration.EvictionPolicy.LRU, 40, 4, "t2", "/opt/loc2", false, 1000, -1);
+        final CacheConfiguration cacheConfiguration1 = TestCacheConfigBuilder.build("test1", CacheConfiguration.EvictionPolicy.LFU, 20, 2, "t1", "/opt/loc", true, -1, -1, List.of(new Listener1()));
+        final CacheConfiguration cacheConfiguration2 = TestCacheConfigBuilder.build("test2", CacheConfiguration.EvictionPolicy.FIFO, 30, 3, "t1", "/opt/loc", true, 10000, 100, List.of(new Listener1()));
+        final CacheConfiguration cacheConfiguration3 = TestCacheConfigBuilder.build("test3", CacheConfiguration.EvictionPolicy.LRU, 40, 4, "t2", "/opt/loc2", false, 1000, -1, List.of(new Listener1()));
 
         final CacheConfiguration configFromXmlTest1 = findConfigByName(configuration.cacheConfigurations(), "test1");
         final CacheConfiguration configFromXmlTest2 = findConfigByName(configuration.cacheConfigurations(), "test2");
@@ -104,46 +105,6 @@ public class XmlConfigurationSourceTest {
                 .filter(c -> c.cacheName().equals(cacheName))
                 .findAny()
                 .orElseThrow();
-    }
-
-    private CacheConfiguration buildCacheConfig(
-            final String cacheName,
-            final CacheConfiguration.EvictionPolicy policy,
-            final int maxEntries,
-            final int concurrencyLevel,
-            final String storageUid,
-            final String location,
-            final boolean eternal,
-            final long lifespan,
-            final long idleTimeout) {
-        return CacheConfiguration
-                .builder()
-                    .setCacheName(cacheName)
-                    .setEvictionPolicy(policy)
-                    .setMemoryStoreConfiguration(
-                            MemoryStoreConfiguration
-                                .builder()
-                                    .setMaxEntries(maxEntries)
-                                    .setConcurrencyLevel(concurrencyLevel)
-                                .build()
-                    )
-                    .setPersistentStoreConfiguration(
-                            PersistentStoreConfiguration
-                                    .builder()
-                                        .setUid(storageUid)
-                                        .setLocation(location)
-                                    .build()
-                    )
-                    .setExpirationConfiguration(
-                            ExpirationConfiguration
-                                    .builder()
-                                        .setEternal(eternal)
-                                        .setLifespan(lifespan)
-                                        .setIdleTimeout(idleTimeout)
-                                    .build()
-                    )
-                    .setCacheEntryEventListeners(List.of(new Listener1()))
-                .build();
     }
 
     public static class Listener1 implements CacheEntryEventListener<String, String> {

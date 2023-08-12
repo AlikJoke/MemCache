@@ -2,8 +2,9 @@ package ru.joke.memcache.core.internal;
 
 import org.junit.jupiter.api.Test;
 import ru.joke.memcache.core.configuration.CacheConfiguration;
-import ru.joke.memcache.core.configuration.ExpirationConfiguration;
-import ru.joke.memcache.core.configuration.MemoryStoreConfiguration;
+import ru.joke.memcache.core.fixtures.TestCacheConfigBuilder;
+
+import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -23,8 +24,6 @@ public class EntryMetadataFactoryTest {
         assertTrue(metadata.compareTo(metadataToCompare) > 0, "Used entry must be larger than non-used entry");
 
         metadataToCompare.onUsage();
-        assertEquals(0, metadata.compareTo(metadataToCompare), "Entries must be equal with equal count of usages");
-
         metadataToCompare.onUsage();
         assertTrue(metadata.compareTo(metadataToCompare) < 0, "Used entry must be larger than entry with lesser count of usages");
     }
@@ -127,25 +126,7 @@ public class EntryMetadataFactoryTest {
     }
 
     private EntryMetadataFactory createFactoryWithPolicy(final CacheConfiguration.EvictionPolicy policy) {
-        final var configuration =
-                CacheConfiguration
-                        .builder()
-                            .setCacheName("test")
-                            .setEvictionPolicy(policy)
-                            .setMemoryStoreConfiguration(
-                                    MemoryStoreConfiguration
-                                            .builder()
-                                                .setMaxEntries(10)
-                                                .setConcurrencyLevel(1)
-                                            .build()
-                            )
-                            .setExpirationConfiguration(
-                                    ExpirationConfiguration
-                                            .builder()
-                                                .setLifespan(1000)
-                                            .build()
-                            )
-                        .build();
+        final var configuration = TestCacheConfigBuilder.build("test", policy, 10, 1, null, null, false, 1000, -1, Collections.emptyList());
         return new EntryMetadataFactory(configuration);
     }
 }

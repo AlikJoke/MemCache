@@ -62,7 +62,8 @@ final class EntryMetadataFactory {
 
         @Override
         public int compareTo(FIFOEntryMetadata<K> o) {
-            return Long.compare(this.expiredByLifespanAt, o.expiredByLifespanAt);
+            final int result = Long.compare(this.expiredByLifespanAt, o.expiredByLifespanAt);
+            return result == 0 ? this.equals(o) ? 0 : (hashCode() > o.hashCode() ? 1 : -1) : result;
         }
     }
 
@@ -83,7 +84,8 @@ final class EntryMetadataFactory {
 
         @Override
         public int compareTo(LFUEntryMetadata<K> o) {
-            return Long.compare(this.usageCounter.get(), o.usageCounter.get());
+            final int result = Long.compare(this.usageCounter.get(), o.usageCounter.get());
+            return result == 0 ? this.equals(o) ? 0 : (hashCode() > o.hashCode() ? 1 : -1) : result;
         }
 
         @Override
@@ -108,7 +110,8 @@ final class EntryMetadataFactory {
 
         @Override
         public int compareTo(LIFOEntryMetadata<K> o) {
-            return Long.compare(o.expiredByLifespanAt, this.expiredByLifespanAt);
+            final int result = Long.compare(o.expiredByLifespanAt, this.expiredByLifespanAt);
+            return result == 0 ? this.equals(o) ? 0 : (hashCode() > o.hashCode() ? 1 : -1) : result;
         }
     }
 
@@ -121,7 +124,8 @@ final class EntryMetadataFactory {
 
         @Override
         public int compareTo(LRUEntryMetadata<K> o) {
-            return Long.compare(this.lastAccessed, o.lastAccessed);
+            final int result = Long.compare(this.lastAccessed, o.lastAccessed);
+            return result == 0 ? this.equals(o) ? 0 : (hashCode() > o.hashCode() ? 1 : -1) : result;
         }
     }
 
@@ -134,7 +138,8 @@ final class EntryMetadataFactory {
 
         @Override
         public int compareTo(MRUEntryMetadata<K> o) {
-            return Long.compare(o.lastAccessed, this.lastAccessed);
+            final int result = Long.compare(o.lastAccessed, this.lastAccessed);
+            return result == 0 ? this.equals(o) ? 0 : (hashCode() > o.hashCode() ? 1 : -1) : result;
         }
     }
 }
