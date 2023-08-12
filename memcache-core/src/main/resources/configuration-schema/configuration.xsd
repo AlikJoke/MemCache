@@ -1,22 +1,54 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <xs:schema elementFormDefault="qualified" xmlns:xs="http://www.w3.org/2001/XMLSchema">
-    <xs:element name="configuration" type="configurationType"/>
+    <xs:element name="configuration" type="configurationType">
+        <xs:annotation>
+            <xs:documentation>Root element of the MemCache configuration.</xs:documentation>
+        </xs:annotation>
+    </xs:element>
     <xs:complexType name="memoryStoreType">
-        <xs:attribute type="positiveInt" name="max-entries" use="required"/>
-        <xs:attribute type="positiveInt" name="concurrency-level" default="16"/>
+        <xs:attribute type="positiveInt" name="max-entries" use="required">
+            <xs:annotation>
+                <xs:documentation>Defines the size of the data container by number of entries. Eviction occurs after the container size exceeds the maximum count.</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute type="positiveInt" name="concurrency-level" default="16">
+            <xs:annotation>
+                <xs:documentation>Specifies the probable concurrency level (count of concurrent threads that can read/write cache elements).</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
     </xs:complexType>
     <xs:complexType name="persistentStoreType">
-        <xs:attribute type="xs:string" name="location"/>
-        <xs:attribute type="xs:string" name="uid" use="required"/>
+        <xs:attribute type="xs:string" name="location">
+            <xs:annotation>
+                <xs:documentation>Specifies the persistent store location (directory path).</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute type="xs:string" name="uid" use="required">
+            <xs:annotation>
+                <xs:documentation>Specifies the unique id of the persistent store (maybe unique application id / name).</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
     </xs:complexType>
     <xs:complexType name="expirationType">
         <xs:attributeGroup ref="expirationAttrs"/>
     </xs:complexType>
 
     <xs:attributeGroup name="expirationAttrs">
-        <xs:attribute type="xs:long" name="lifespan"/>
-        <xs:attribute type="xs:long" name="idle-ttl"/>
-        <xs:attribute type="xs:boolean" name="eternal" default="false"/>
+        <xs:attribute type="xs:long" name="lifespan">
+            <xs:annotation>
+                <xs:documentation>Specifies the maximum amount of time, in milliseconds, that cache entries can exist. After reaching their lifespan, cache entries expire. A value of 0 or -1 disables expiration.</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute type="xs:long" name="idle-ttl">
+            <xs:annotation>
+                <xs:documentation>Specifies the maximum amount of time, in milliseconds, that cache entries can remain idle. If no operations are performed on entries within the maximum idle time, the entries expire. A value of 0 or -1 disables expiration.</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute type="xs:boolean" name="eternal" default="false">
+            <xs:annotation>
+                <xs:documentation>Specifies the sign of the eternal storage of cache elements (without expiration in time).</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
     </xs:attributeGroup>
 
     <xs:complexType name="cacheType">
@@ -24,34 +56,90 @@
             <xs:element name="eviction-policy">
                 <xs:simpleType>
                     <xs:restriction base="xs:string">
-                        <xs:enumeration value="LFU"/>
-                        <xs:enumeration value="LRU"/>
-                        <xs:enumeration value="MRU"/>
-                        <xs:enumeration value="FIFO"/>
-                        <xs:enumeration value="LIFO"/>
+                        <xs:enumeration value="LFU">
+                            <xs:annotation>
+                                <xs:documentation>Least Frequently Used</xs:documentation>
+                            </xs:annotation>
+                        </xs:enumeration>
+                        <xs:enumeration value="LRU">
+                            <xs:annotation>
+                                <xs:documentation>Least Recently Used</xs:documentation>
+                            </xs:annotation>
+                        </xs:enumeration>
+                        <xs:enumeration value="MRU">
+                            <xs:annotation>
+                                <xs:documentation>Most Recently Used</xs:documentation>
+                            </xs:annotation>
+                        </xs:enumeration>
+                        <xs:enumeration value="FIFO">
+                            <xs:annotation>
+                                <xs:documentation>First In First Out</xs:documentation>
+                            </xs:annotation>
+                        </xs:enumeration>
+                        <xs:enumeration value="LIFO">
+                            <xs:annotation>
+                                <xs:documentation>Last In First Out</xs:documentation>
+                            </xs:annotation>
+                        </xs:enumeration>
                     </xs:restriction>
                 </xs:simpleType>
             </xs:element>
-            <xs:element type="memoryStoreType" name="memory-store"/>
-            <xs:element type="persistentStoreType" name="persistent-disk-store" minOccurs="0"/>
-            <xs:element type="expirationType" name="expiration"/>
-            <xs:element type="eventListenersType" name="event-listeners" minOccurs="0"/>
+            <xs:element type="memoryStoreType" name="memory-store">
+                <xs:annotation>
+                    <xs:documentation>Specifies the memory store configuration.</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element type="persistentStoreType" name="persistent-disk-store" minOccurs="0">
+                <xs:annotation>
+                    <xs:documentation>Specifies the persistent store configuration.</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element type="expirationType" name="expiration">
+                <xs:annotation>
+                    <xs:documentation>Specifies the expiration configuration of elements.</xs:documentation>
+                </xs:annotation>
+            </xs:element>
+            <xs:element type="eventListenersType" name="event-listeners" minOccurs="0">
+                <xs:annotation>
+                    <xs:documentation>Specifies a list of fully qualified class names of cache event listeners.</xs:documentation>
+                </xs:annotation>
+            </xs:element>
         </xs:sequence>
-        <xs:attribute type="xs:string" name="name" use="required"/>
+        <xs:attribute type="xs:string" name="name" use="required">
+            <xs:annotation>
+                <xs:documentation>Specifies the unique name of the cache.</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
     </xs:complexType>
 
     <xs:complexType name="eventListenersType">
         <xs:sequence>
-            <xs:element type="xs:string" name="class" maxOccurs="unbounded"/>
+            <xs:element type="xs:string" name="class" maxOccurs="unbounded">
+                <xs:annotation>
+                    <xs:documentation>Specifies the fully qualified name of the cache event listener class.</xs:documentation>
+                </xs:annotation>
+            </xs:element>
         </xs:sequence>
     </xs:complexType>
 
     <xs:complexType name="configurationType">
         <xs:sequence>
-            <xs:element type="cacheType" name="cache" maxOccurs="unbounded" minOccurs="0"/>
+            <xs:element type="cacheType" name="cache" maxOccurs="unbounded" minOccurs="0">
+                <xs:annotation>
+                    <xs:documentation>Specifies a list of the cache configurations.</xs:documentation>
+                </xs:annotation>
+            </xs:element>
         </xs:sequence>
-        <xs:attribute type="positiveInt" name="expired-cleaning-pool-size" default="1"/>
-        <xs:attribute type="positiveInt" name="async-cache-ops-parallelism"/>
+        <xs:attribute type="positiveInt" name="expired-cleaning-pool-size" default="1">
+            <xs:annotation>
+                <xs:documentation>Specifies the expired elements cleaning pool size. The default value is 1. Depending on the number of caches and their size, a larger value than the default value may be required.</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute type="positiveInt" name="async-cache-ops-parallelism">
+            <xs:annotation>
+                <xs:documentation>Specifies the size of the pool of asynchronous operations on cache items. The default value is half of the available processors.</xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
     </xs:complexType>
 
     <xs:simpleType name="positiveInt">

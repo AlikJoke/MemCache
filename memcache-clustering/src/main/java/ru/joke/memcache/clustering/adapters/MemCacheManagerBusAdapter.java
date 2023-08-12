@@ -15,6 +15,13 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Adapter implementation of the {@linkplain CacheManager} for the MemCache.
+ *
+ * @author Alik
+ * @see CacheManager
+ * @see MemCacheManager
+ */
 @ThreadSafe
 public final class MemCacheManagerBusAdapter implements CacheManager {
 
@@ -59,8 +66,7 @@ public final class MemCacheManagerBusAdapter implements CacheManager {
     }
 
     private <K extends Serializable, V extends Serializable> Cache<K, V> cast(Cache<Serializable, Serializable> cache) {
-        @SuppressWarnings("unchecked")
-        final Cache<K, V> result = (Cache<K, V>) cache;
+        @SuppressWarnings("unchecked") final Cache<K, V> result = (Cache<K, V>) cache;
         return result;
     }
 }

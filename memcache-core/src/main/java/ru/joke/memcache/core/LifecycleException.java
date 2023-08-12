@@ -2,6 +2,13 @@ package ru.joke.memcache.core;
 
 import javax.annotation.Nonnull;
 
+/**
+ * An exception indicating that an exceptional situation has occurred in a certain operation,
+ * related to an invalid component lifecycle state.
+ *
+ * @author Alik
+ * @see MemCacheException
+ */
 public class LifecycleException extends MemCacheException {
 
     public LifecycleException(@Nonnull String message) {

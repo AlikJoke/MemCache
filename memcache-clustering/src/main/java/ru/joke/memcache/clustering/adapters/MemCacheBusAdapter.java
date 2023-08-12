@@ -14,6 +14,15 @@ import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+/**
+ * Adapter implementation of the {@linkplain Cache} for the MemCache.
+ *
+ * @param <K> type of the cache keys
+ * @param <V> type of cache values
+ * @author Alik
+ * @see Cache
+ * @see MemCache
+ */
 @ThreadSafe
 public final class MemCacheBusAdapter<K extends Serializable, V extends Serializable> implements Cache<K, V> {
 

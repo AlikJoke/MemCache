@@ -13,6 +13,16 @@ import java.io.Serializable;
 import java.util.Optional;
 import java.util.Set;
 
+/**
+ * Implementation of a cache manager for client applications.<br>
+ * Clients should use this implementation as an entry point for working with caching.
+ *
+ * @author Alik
+ * @see MemCacheManager
+ * @see MemCache
+ * @see ConfigurationSource
+ * @see Configuration
+ */
 @ThreadSafe
 public final class DefaultMemCacheManager implements MemCacheManager, Closeable {
 

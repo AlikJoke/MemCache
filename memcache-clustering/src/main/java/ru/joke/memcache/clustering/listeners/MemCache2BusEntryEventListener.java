@@ -14,6 +14,13 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serializable;
 import java.util.Objects;
 
+/**
+ * Implementation of the {@linkplain ru.joke.cache.bus.core.CacheEventListener} for MemCache.
+ *
+ * @author Alik
+ * @see ru.joke.cache.bus.core.CacheEventListener
+ * @see CacheEntryEventListener
+ */
 @ThreadSafe
 @Immutable
 final class MemCache2BusEntryEventListener<K extends Serializable, V extends Serializable> implements CacheEntryEventListener<K, V>, ru.joke.cache.bus.core.CacheEventListener<K, V> {

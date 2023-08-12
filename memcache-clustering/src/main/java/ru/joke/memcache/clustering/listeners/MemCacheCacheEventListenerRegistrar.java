@@ -12,6 +12,12 @@ import java.io.Serializable;
 import java.util.Objects;
 import java.util.UUID;
 
+/**
+ * Implementation of the {@linkplain CacheEventListenerRegistrar} for MemCache.
+ *
+ * @see CacheEventListenerRegistrar
+ * @author Alik
+ */
 @ThreadSafe
 @Immutable
 public final class MemCacheCacheEventListenerRegistrar implements CacheEventListenerRegistrar {

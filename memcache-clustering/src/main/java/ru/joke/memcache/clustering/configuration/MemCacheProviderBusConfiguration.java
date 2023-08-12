@@ -25,6 +25,13 @@ public final class MemCacheProviderBusConfiguration extends CacheProviderConfigu
         );
     }
 
+    /**
+     * Creates caching provider configuration by provided MemCache cache manager.
+     *
+     * @param cacheManager MemCache cache manager, cannot be {@code null}.
+     * @return caching provider configuration, cannot be {@code null}.
+     * @see CacheProviderConfiguration
+     */
     @Nonnull
     public static CacheProviderConfiguration create(@Nonnull MemCacheManager cacheManager) {
         return new MemCacheProviderBusConfiguration(cacheManager);
