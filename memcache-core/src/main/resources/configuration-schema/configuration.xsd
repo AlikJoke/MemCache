@@ -36,12 +36,12 @@
     <xs:attributeGroup name="expirationAttrs">
         <xs:attribute type="xs:long" name="lifespan">
             <xs:annotation>
-                <xs:documentation>Specifies the maximum amount of time, in milliseconds, that cache entries can exist. After reaching their lifespan, cache entries expire. A value of 0 or -1 disables expiration.</xs:documentation>
+                <xs:documentation>Specifies the maximum amount of time, in milliseconds, that cache entries can exist. After reaching their lifespan, cache entries expire. A value of -1 disables expiration.</xs:documentation>
             </xs:annotation>
         </xs:attribute>
         <xs:attribute type="xs:long" name="idle-ttl">
             <xs:annotation>
-                <xs:documentation>Specifies the maximum amount of time, in milliseconds, that cache entries can remain idle. If no operations are performed on entries within the maximum idle time, the entries expire. A value of 0 or -1 disables expiration.</xs:documentation>
+                <xs:documentation>Specifies the maximum amount of time, in milliseconds, that cache entries can remain idle. If no operations are performed on entries within the maximum idle time, the entries expire. A value of -1 disables expiration.</xs:documentation>
             </xs:annotation>
         </xs:attribute>
         <xs:attribute type="xs:boolean" name="eternal" default="false">

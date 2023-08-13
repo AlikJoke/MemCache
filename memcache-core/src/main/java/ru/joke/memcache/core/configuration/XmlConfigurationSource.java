@@ -28,6 +28,12 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * Source of the MemCache caching provider configuration based on XML configuration file.
+ *
+ * @author Alik
+ * @see ConfigurationSource
+ */
 @ThreadSafe
 @Immutable
 public final class XmlConfigurationSource implements ConfigurationSource {
@@ -108,6 +114,12 @@ public final class XmlConfigurationSource implements ConfigurationSource {
                 '}';
     }
 
+    /**
+     * Returns a caching configuration builder based on the XML file.
+     *
+     * @return builder, cannot be {@code null}.
+     * @see Builder
+     */
     @Nonnull
     public static Builder builder() {
         return new Builder();
@@ -122,9 +134,9 @@ public final class XmlConfigurationSource implements ConfigurationSource {
         final Set<File> autoDetectedConfigs = this.autoDetectedConfigurationFilesCollector.collect();
         final Set<ConfigurationLoader> loaders =
                 autoDetectedConfigs
-                    .stream()
-                    .map(FileConfigurationLoader::new)
-                    .collect(Collectors.toSet());
+                        .stream()
+                        .map(FileConfigurationLoader::new)
+                        .collect(Collectors.toSet());
 
         final Set<ConfigurationLoader> result = new HashSet<>(loaders.size() + this.configurationLoaders.size());
         result.addAll(loaders);
@@ -275,10 +287,10 @@ public final class XmlConfigurationSource implements ConfigurationSource {
 
     private CacheEntryEventListener<?, ?> createEventListenerInstance(final String className) {
         try {
-            @SuppressWarnings("unchecked")
-            final Class<CacheEntryEventListener<?, ?>> listenerClass = (Class<CacheEntryEventListener<?, ?>>) Class.forName(className);
+            @SuppressWarnings("unchecked") final Class<CacheEntryEventListener<?, ?>> listenerClass = (Class<CacheEntryEventListener<?, ?>>) Class.forName(className);
             return listenerClass.getDeclaredConstructor().newInstance();
-        } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException | InstantiationException | InvocationTargetException e) {
+        } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException | InstantiationException |
+                 InvocationTargetException e) {
             throw new InvalidConfigurationException(e);
         }
     }
@@ -359,24 +371,50 @@ public final class XmlConfigurationSource implements ConfigurationSource {
         };
     }
 
+    /**
+     * Caching configuration builder.
+     *
+     * @author Alik
+     * @see XmlConfigurationSource#builder()
+     */
     @NotThreadSafe
     public static class Builder {
 
         private boolean enableAutoDetection;
         private final Set<ConfigurationLoader> configurationLoaders = new HashSet<>();
 
+        /**
+         * Sets the flag to enable the scanning mode of jar files in the distribution in order
+         * to search for configuration XML files in memcache directories (all XML files from
+         * this directory are selected in each jar).
+         *
+         * @param autoDetectionEnabled the flag to enable the scanning mode of jar files.
+         * @return the builder, cannot be {@code null}.
+         */
         @Nonnull
         public Builder withAutoDetectionEnabled(final boolean autoDetectionEnabled) {
             this.enableAutoDetection = autoDetectionEnabled;
             return this;
         }
 
+        /**
+         * Adds the external configuration file to configurations.
+         *
+         * @param configurationFile external configuration file, cannot be {@code null}.
+         * @return the builder, cannot be {@code null}.
+         */
         @Nonnull
         public Builder addExternalConfigurationFile(@Nonnull final File configurationFile) {
             this.configurationLoaders.add(new FileConfigurationLoader(configurationFile));
             return this;
         }
 
+        /**
+         * Adds the external configuration files to configurations.
+         *
+         * @param configurationFiles external configuration files, cannot be {@code null}.
+         * @return the builder, cannot be {@code null}.
+         */
         @Nonnull
         public Builder addExternalConfigurationFiles(@Nonnull final Set<File> configurationFiles) {
             configurationFiles
@@ -386,12 +424,24 @@ public final class XmlConfigurationSource implements ConfigurationSource {
             return this;
         }
 
+        /**
+         * Adds the resource configuration file path (path inside of jar) to configurations.
+         *
+         * @param resourceConfigurationFilePath internal resource configuration file path, cannot be {@code null}.
+         * @return the builder, cannot be {@code null}.
+         */
         @Nonnull
         public Builder addResourceConfigurationFilePath(@Nonnull final String resourceConfigurationFilePath) {
             this.configurationLoaders.add(new ConfigurationLoaderByResourcePath(resourceConfigurationFilePath));
             return this;
         }
 
+        /**
+         * Adds the resource configuration file paths (paths inside of jar) to configurations.
+         *
+         * @param resourceConfigurationFilePaths internal resource configuration file paths, cannot be {@code null}.
+         * @return the builder, cannot be {@code null}.
+         */
         @Nonnull
         public Builder addResourceConfigurationFilePaths(@Nonnull final Set<String> resourceConfigurationFilePaths) {
             resourceConfigurationFilePaths
@@ -401,6 +451,12 @@ public final class XmlConfigurationSource implements ConfigurationSource {
             return this;
         }
 
+        /**
+         * Performs the creation of the configuration source based on the data passed to the builder.
+         *
+         * @return cannot be {@code null}.
+         * @see ConfigurationSource
+         */
         @Nonnull
         public ConfigurationSource build() {
             return new XmlConfigurationSource(this.enableAutoDetection, this.configurationLoaders);

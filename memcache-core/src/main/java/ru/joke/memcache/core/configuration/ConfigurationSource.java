@@ -6,18 +6,29 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * Source of the MemCache caching provider configuration. Depending on the application
+ * configuration, it can be configured using either XML or Java API, or an alternative
+ * option with its own implementation of this interface.
+ *
+ * @author Alik
+ * @see Configuration
+ * @see ConfigurationSource#createDefault()
+ * @see XmlConfigurationSource
+ */
 public interface ConfigurationSource {
 
     /**
-     * Returns the cache configuration from the source.
+     * Returns the MemCache caching provider configuration from the source.
      *
      * @return cannot be {@code null}.
+     * @see Configuration
      */
     @Nonnull
     Configuration pull();
 
     /**
-     * Returns the default cache configuration source, manually configurable.
+     * Returns the default caching configuration source, manually configurable.
      *
      * @return cannot be {@code null}.
      * @see SimpleConfigurationSource
@@ -28,13 +39,14 @@ public interface ConfigurationSource {
     }
 
     /**
-     * Manually configurable cache configuration source.
+     * Manually configurable caching configuration source.
      *
      * @author Alik
      * @implSpec The implementation is not thread-safe, so the reference to the source can only be passed
      * to the memcache configuration object. When publishing the reference externally, the result is undefined
      * if the source is modified in other threads.
      * @see ConfigurationSource
+     * @see XmlConfigurationSource
      */
     @NotThreadSafe
     final class SimpleConfigurationSource implements ConfigurationSource {
@@ -87,6 +99,7 @@ public interface ConfigurationSource {
          *
          * @param configuration the cache configuration, cannot be {@code null}.
          * @return the source for further building, cannot be {@code null}.
+         * @see CacheConfiguration
          */
         @Nonnull
         public SimpleConfigurationSource add(@Nonnull CacheConfiguration configuration) {
@@ -99,6 +112,7 @@ public interface ConfigurationSource {
          *
          * @param configurations the cache configurations, cannot be {@code null}.
          * @return the source for further building, cannot be {@code null}.
+         * @see CacheConfiguration
          */
         @Nonnull
         public SimpleConfigurationSource addAll(@Nonnull Set<CacheConfiguration> configurations) {
@@ -117,12 +131,27 @@ public interface ConfigurationSource {
             return this;
         }
 
+        /**
+         * Sets the expired elements cleaning pool size.<br>
+         * The default value is 1.
+         * Depending on the number of caches and their size, a larger value than the default value may be required.
+         *
+         * @param cleaningPoolSize the expired elements cleaning pool size, should be positive.
+         * @return the source for further building, cannot be {@code null}.
+         */
         @Nonnull
         public SimpleConfigurationSource setCleaningPoolSize(@Nonnegative int cleaningPoolSize) {
             this.cleaningPoolSize = cleaningPoolSize;
             return this;
         }
 
+        /**
+         * Sets the size of the pool of asynchronous operations on cache elements.<br>
+         * The default value is half of the available processors.
+         *
+         * @param asyncCacheOpsParallelismLevel the size of the pool of asynchronous operations on cache elements, should be positive.
+         * @return the source for further building, cannot be {@code null}.
+         */
         @Nonnull
         public SimpleConfigurationSource setAsyncCacheOpsParallelismLevel(@Nonnegative int asyncCacheOpsParallelismLevel) {
             this.asyncCacheOpsParallelismLevel = asyncCacheOpsParallelismLevel;
