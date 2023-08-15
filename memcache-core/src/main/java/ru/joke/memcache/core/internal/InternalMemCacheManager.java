@@ -16,6 +16,7 @@ import java.io.Closeable;
 import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
 @ThreadSafe
@@ -123,6 +124,17 @@ public final class InternalMemCacheManager implements MemCacheManager, Closeable
         @SuppressWarnings("unchecked")
         final MemCache<K, V> cache = (MemCache<K, V>) this.caches.get(cacheName);
         return Optional.ofNullable(cache);
+    }
+
+    @Nonnull
+    @Override
+    public <K extends Serializable, V extends Serializable> Optional<MemCache<K, V>> getCache(@Nonnull String cacheName, @Nonnull Class<K> keysType, @Nonnull Class<V> valuesType) {
+        return getCache(cacheName)
+                .map(c -> {
+                    @SuppressWarnings("unchecked")
+                    final MemCache<K, V> result = (MemCache<K, V>) c;
+                    return result;
+                });
     }
 
     @Nonnull
@@ -256,14 +268,13 @@ public final class InternalMemCacheManager implements MemCacheManager, Closeable
 
     static class CleaningThreadFactory implements ThreadFactory {
 
+        private final AtomicInteger counter = new AtomicInteger(0);
+
         @Override
         public Thread newThread(@Nonnull Runnable r) {
-            final Thread result = Thread
-                                    .ofVirtual()
-                                    .name("MemCache-Cleaning-Thread-", 0)
-                                    .uncaughtExceptionHandler((t, e) -> logger.error("Unexpected error from cleaning thread: " + t, e))
-                                    .unstarted(r);
+            final Thread result = new Thread(null, r, "MemCache-Cleaning-Thread-" + counter.getAndIncrement());
             result.setDaemon(true);
+            result.setUncaughtExceptionHandler((t, e) -> logger.error("Unexpected error from cleaning thread: " + t, e));
             return result;
         }
     }

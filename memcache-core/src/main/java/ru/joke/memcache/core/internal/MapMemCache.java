@@ -45,6 +45,7 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
     private final PersistentCacheRepository persistentCacheRepository;
     private final InternalMemCacheStatistics statistics;
 
+    private volatile long nearestElementExpirationTime;
     private volatile ComponentStatus status;
     private volatile Map<K, MemCacheEntry<K, V>>[] segments;
 
@@ -222,6 +223,7 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
     }
 
     @Override
+    @Nonnull
     public Optional<V> merge(@Nonnull K key, @Nonnull V value, @Nonnull BiFunction<? super V, ? super V, ? extends V> mergeFunction) {
         return this.compute(key, (k, oldV) -> {
             if (oldV == null) {
@@ -545,18 +547,41 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
             return;
         }
 
-        final long idleExpirationTimeout = this.configuration.expirationConfiguration().idleTimeout();
-        final long idleExpirationTime = idleExpirationTimeout < 0 ? idleExpirationTimeout : System.currentTimeMillis() - idleExpirationTimeout;
-        this.entriesMetadata.forEach(metadata -> {
-            if (metadata.expiredByLifespanAt() <= System.currentTimeMillis() || metadata.lastAccessed() <= idleExpirationTime) {
-                // eviction of element from cache data
-                compute(metadata.key(), (k, v) -> {
-                    this.statistics.onExpiration();
-                    this.entriesMetadata.remove(metadata);
-                    return null;
-                }, true, true);
+        final LongContainer currentTime = new LongContainer();
+        currentTime.value = System.currentTimeMillis();
+        if (this.nearestElementExpirationTime > currentTime.value) {
+            return;
+        }
+
+        synchronized (this) {
+
+            if (this.nearestElementExpirationTime > (currentTime.value = System.currentTimeMillis())) {
+                return;
             }
-        });
+
+            final long idleExpirationTimeout = this.configuration.expirationConfiguration().idleTimeout();
+            final long idleExpirationTime = idleExpirationTimeout < 0 ? idleExpirationTimeout : currentTime.value - idleExpirationTimeout;
+
+            final LongContainer nearestElementExpirationInterval = new LongContainer();
+            nearestElementExpirationInterval.value = idleExpirationTimeout;
+
+            this.entriesMetadata.forEach(metadata -> {
+                final long expiredByLifespanAfter = metadata.expiredByLifespanAt() - currentTime.value;
+                final long expiredByIdleTimeoutAfter = metadata.lastAccessed() - idleExpirationTime;
+                if (expiredByLifespanAfter <= 0 || expiredByIdleTimeoutAfter <= 0) {
+                    // eviction of element from cache data
+                    compute(metadata.key(), (k, v) -> {
+                        this.statistics.onExpiration();
+                        this.entriesMetadata.remove(metadata);
+                        return null;
+                    }, true, true);
+                } else if (nearestElementExpirationInterval.value > expiredByLifespanAfter || nearestElementExpirationInterval.value > expiredByIdleTimeoutAfter) {
+                    nearestElementExpirationInterval.value = Math.min(expiredByLifespanAfter, expiredByIdleTimeoutAfter);
+                }
+            });
+
+            this.nearestElementExpirationTime = currentTime.value + nearestElementExpirationInterval.value;
+        }
 
         logger.trace("Expired entries cleaning was completed: {}", this);
     }
@@ -708,7 +733,10 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
     private Map<K, MemCacheEntry<K, V>>[] createSegments() {
         final MemoryStoreConfiguration storeConfiguration = configuration.memoryStoreConfiguration();
         final int concurrencyLevel = storeConfiguration.concurrencyLevel();
-        final int segmentsCount = concurrencyLevel % 2 == 1 ? concurrencyLevel + 1 : concurrencyLevel;
+        int segmentsCount = concurrencyLevel % 2 == 1 ? concurrencyLevel + 1 : concurrencyLevel;
+        while (segmentsCount > 1 && storeConfiguration.maxEntries() / segmentsCount < 2) {
+            segmentsCount /= 2;
+        }
 
         @SuppressWarnings("unchecked")
         final Map<K, MemCacheEntry<K, V>>[] segments = new ConcurrentHashMap[segmentsCount];
@@ -717,5 +745,9 @@ final class MapMemCache<K extends Serializable, V extends Serializable> implemen
         }
 
         return segments;
+    }
+
+    private static class LongContainer {
+        private long value;
     }
 }

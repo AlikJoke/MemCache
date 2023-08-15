@@ -62,6 +62,12 @@ public final class DefaultMemCacheManager implements MemCacheManager, Closeable 
         return this.delegateManager.getCache(cacheName);
     }
 
+    @Nonnull
+    @Override
+    public <K extends Serializable, V extends Serializable> Optional<MemCache<K, V>> getCache(@Nonnull String cacheName, @Nonnull Class<K> keysType, @Nonnull Class<V> valuesType) {
+        return this.delegateManager.getCache(cacheName, keysType, valuesType);
+    }
+
     @Override
     @Nonnull
     public Set<String> getCacheNames() {

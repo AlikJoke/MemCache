@@ -49,6 +49,20 @@ public interface MemCacheManager extends Lifecycle {
     <K extends Serializable, V extends Serializable> Optional<MemCache<K, V>> getCache(@Nonnull String cacheName);
 
     /**
+     * Returns the cache with the specified name if a cache managed by the cache manager with that name exists.
+     *
+     * @param cacheName unique name of the cache, cannot be {@code null}.
+     * @param keysType type of cache keys, cannot be {@code null}.
+     * @param valuesType type of cache values, cannot be {@code null}.
+     * @param <K>       the type of the cache keys
+     * @param <V>       the type of the cache values
+     * @return the cache with the specified name, or {@linkplain Optional#empty()} if the cache with such name does not exist.
+     */
+    @Nonnull
+    @CheckReturnValue
+    <K extends Serializable, V extends Serializable> Optional<MemCache<K, V>> getCache(@Nonnull String cacheName, @Nonnull Class<K> keysType, @Nonnull Class<V> valuesType);
+
+    /**
      * Returns a list of names (identifiers) of caches managed by this cache manager.
      *
      * @return cannot be {@code null}.
